@@ -879,6 +879,18 @@ export default function USCAccountingPracticeTool() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="rounded-[1.9rem] border border-white/70 bg-white/75 px-6 py-5 text-sm text-slate-600 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="font-semibold uppercase tracking-[0.18em] text-slate-500">Prepared By</div>
+              <div className="mt-1 text-base font-semibold text-slate-900">Dr. Ian Helfrich</div>
+            </div>
+            <div className="max-w-2xl leading-6 md:text-right">
+              Midterm 2 accounting practice trainer for Hanna Nio, with exam-aligned questions, recovery flow, and kawaii visual study supports.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
