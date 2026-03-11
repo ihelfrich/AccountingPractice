@@ -35,6 +35,15 @@ import {
   TabsList,
   TabsTrigger
 } from "./studyUi";
+import {
+  buildCoachHistoryEntry,
+  buildConceptPriorities,
+  getConceptReviewPack,
+  getConceptLessons,
+  type CoachHistoryEntry,
+  type CoachQuestionRecord,
+  type ConceptPriority
+} from "./conceptCoach";
 
 const moods = [
   "Tiny steps still count.",
@@ -189,7 +198,7 @@ const studyBoards: StickerItem[] = [
 ];
 
 type ActiveSessionMode = "diagnostic" | "drill" | "weak" | "mockConfidence" | "mockExam" | "mistakes";
-type ViewMode = "home" | "review" | "learn" | "effects" | "cases" | "simulators" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
+type ViewMode = "home" | "coach" | "review" | "learn" | "effects" | "cases" | "simulators" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
 
 type ConfidenceLevel = "Guessing" | "Pretty sure" | "Certain";
 
@@ -258,6 +267,7 @@ type ProgressSnapshot = {
   sessionCount: number;
   lastSessionSummary: SessionSummary | null;
   sessionHistory: SessionHistoryEntry[];
+  coachHistory: CoachHistoryEntry[];
   mistakeBook: MistakeBookItem[];
   missionDay: string;
   completedMissionIds: string[];
@@ -1137,6 +1147,140 @@ function DailyMissionCard({
   );
 }
 
+function CoachPriorityCard({
+  priority,
+  revealed,
+  onToggleAnswer,
+  onLaunchFix
+}: {
+  priority: ConceptPriority;
+  revealed: boolean;
+  onToggleAnswer: () => void;
+  onLaunchFix: () => void;
+}) {
+  const toneClasses = {
+    Urgent: "border-rose-200 bg-rose-50/85",
+    Active: "border-amber-200 bg-amber-50/85",
+    Reinforce: "border-sky-200 bg-sky-50/85",
+    Stable: "border-emerald-200 bg-emerald-50/85"
+  };
+
+  return (
+    <div className={`rounded-[1.8rem] border p-5 shadow-sm motion-card ${toneClasses[priority.status]}`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>{priority.lesson.topic}</Badge>
+            <Badge variant="outline">{priority.status}</Badge>
+            <Badge variant="outline">Priority {priority.score}</Badge>
+          </div>
+          <div className="mt-3 text-xl font-semibold leading-8 text-slate-900">{priority.lesson.title}</div>
+          <div className="mt-2 text-sm leading-6 text-slate-600">{priority.whyNow}</div>
+        </div>
+        <PulseRing
+          value={Math.min(100, Math.max(18, Math.round(priority.score * 2.4)))}
+          label="Need"
+          sublabel={`${priority.signals.mistakeCount} mistake-book hits · ${priority.signals.latestWrong} recent wrong`}
+          tone={priority.status === "Urgent" ? "rose" : priority.status === "Active" ? "sky" : "emerald"}
+          size={92}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr,0.9fr]">
+        <div className="space-y-4">
+          <div className="rounded-3xl bg-white/80 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Teach this now</div>
+            <div className="mt-2 text-sm leading-7 text-slate-700">{priority.lesson.teach}</div>
+          </div>
+          <div className="rounded-3xl bg-white/80 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Exam moves</div>
+            <div className="mt-3 grid gap-2">
+              {priority.lesson.examMoves.map((move) => (
+                <div key={move} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700">
+                  {move}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl bg-white/80 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Classic trap</div>
+            <div className="mt-2 text-sm leading-7 text-slate-700">{priority.lesson.trap}</div>
+          </div>
+          <div className="rounded-3xl bg-white/80 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Retrieval prompt</div>
+            <div className="mt-2 text-sm leading-7 text-slate-700">{priority.lesson.retrievalPrompt}</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="outline" onClick={onToggleAnswer}>
+                {revealed ? "Hide answer" : "Reveal answer"}
+              </Button>
+              <Button onClick={onLaunchFix}>
+                Train this concept
+              </Button>
+            </div>
+            {revealed ? (
+              <div className="mt-3 rounded-2xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">{priority.lesson.retrievalAnswer}</div>
+            ) : null}
+          </div>
+          <div className="rounded-3xl bg-white/80 p-4 text-sm leading-6 text-slate-700">
+            Matching reps available: <span className="font-semibold text-slate-900">{priority.matchedQuestions.length}</span>
+            {" "}· Flagged on latest run: <span className="font-semibold text-slate-900">{priority.signals.flagged}</span>
+            {" "}· Certain and wrong: <span className="font-semibold text-slate-900">{priority.signals.overconfidentErrors}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoachHistoryTimeline({
+  history,
+  currentPriorityIds
+}: {
+  history: CoachHistoryEntry[];
+  currentPriorityIds: string[];
+}) {
+  if (!history.length) {
+    return <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">No concept history yet. Finish a few sessions and the coach will start logging what Hanna had to learn over time.</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {history.map((entry) => (
+        <div key={entry.createdAt} className="rounded-[1.8rem] border border-white/70 bg-white/90 p-5 shadow-sm motion-card">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Coach snapshot</div>
+              <div className="mt-1 text-lg font-semibold text-slate-900">
+                {new Date(entry.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </div>
+            </div>
+            <Badge variant="outline">Top six at that moment</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {entry.priorities.map((item) => {
+              const stillLive = currentPriorityIds.includes(item.id);
+              return (
+                <div key={`${entry.createdAt}-${item.id}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge>{item.topic}</Badge>
+                    <Badge variant="outline">{item.status}</Badge>
+                    <Badge variant="outline">{stillLive ? "Still active" : "Now calmer"}</Badge>
+                  </div>
+                  <div className="mt-3 font-semibold text-slate-900">{item.title}</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-600">Priority score then: {item.score}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HistorySparkline({ entries }: { entries: SessionHistoryEntry[] }) {
   if (!entries.length) {
     return <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">No session history yet. Finish a few runs and the trend board will wake up.</div>;
@@ -1273,6 +1417,9 @@ export default function USCAccountingPracticeTool() {
   const [lastSessionSummary, setLastSessionSummary] = useState<SessionSummary | null>(null);
   const [mistakeBook, setMistakeBook] = useState<MistakeBookItem[]>(readStoredMistakeBook);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>([]);
+  const [coachHistory, setCoachHistory] = useState<CoachHistoryEntry[]>([]);
+  const [coachView, setCoachView] = useState<"live" | "history">("live");
+  const [revealedCoachAnswers, setRevealedCoachAnswers] = useState<string[]>([]);
   const [missionDay, setMissionDay] = useState(todayLocalKey);
   const [completedMissionIds, setCompletedMissionIds] = useState<string[]>([]);
   const [vaultMessage, setVaultMessage] = useState("");
@@ -1341,6 +1488,26 @@ export default function USCAccountingPracticeTool() {
     : [];
   const recentHistory = sessionHistory.slice(0, 7).reverse();
   const bestAccuracy = sessionHistory.length ? Math.max(...sessionHistory.map((item) => item.accuracy)) : null;
+  const conceptLessons = useMemo(() => getConceptLessons(), []);
+  const coachPriorities = useMemo(
+    () =>
+      buildConceptPriorities({
+        questions: questionBank,
+        mistakeBook,
+        missedTopics,
+        latestRecords: (lastSessionSummary?.questionRecords ?? []) as CoachQuestionRecord[],
+        sessionHistory: sessionHistory.map((entry) => ({
+          topic: entry.topic,
+          accuracy: entry.accuracy,
+          missedTopics: entry.missedTopics
+        }))
+      }),
+    [lastSessionSummary?.questionRecords, missedTopics, mistakeBook, sessionHistory]
+  );
+  const topCoachPriorities = coachPriorities.slice(0, 6);
+  const currentCoachPriorityIds = topCoachPriorities.map((item) => item.lesson.id);
+  const coachedConceptIds = new Set(coachHistory.flatMap((entry) => entry.priorities.map((item) => item.id)));
+  const stabilizedConcepts = conceptLessons.filter((lesson) => coachedConceptIds.has(lesson.id) && !topCoachPriorities.some((item) => item.lesson.id === lesson.id));
   const masteryTopics = topicRescues.map((item, index) => {
     const misses = missedTopics[item.topic] || 0;
     const recentForTopic = sessionHistory.filter((entry) => entry.topic === item.topic || entry.missedTopics.includes(item.topic));
@@ -1415,6 +1582,7 @@ export default function USCAccountingPracticeTool() {
     setSessionCount(stored.sessionCount || 0);
     setLastSessionSummary(stored.lastSessionSummary || null);
     setSessionHistory(Array.isArray(stored.sessionHistory) ? stored.sessionHistory : []);
+    setCoachHistory(Array.isArray(stored.coachHistory) ? stored.coachHistory : []);
     if (Array.isArray(stored.mistakeBook)) {
       setMistakeBook(stored.mistakeBook);
     }
@@ -1444,6 +1612,7 @@ export default function USCAccountingPracticeTool() {
       sessionCount,
       lastSessionSummary,
       sessionHistory,
+      coachHistory,
       mistakeBook,
       missionDay,
       completedMissionIds
@@ -1460,6 +1629,7 @@ export default function USCAccountingPracticeTool() {
     score,
     selectedTopic,
     sessionCount,
+    coachHistory,
     sessionHistory,
     storageReady,
     streak
@@ -1545,6 +1715,27 @@ export default function USCAccountingPracticeTool() {
         });
         setLastSessionSummary(summary);
         setSessionHistory((prev) => [buildHistoryEntry(summary), ...prev].slice(0, 14));
+        const coachSnapshot = buildCoachHistoryEntry(
+          buildConceptPriorities({
+            questions: questionBank,
+            mistakeBook,
+            missedTopics,
+            latestRecords: summary.questionRecords as CoachQuestionRecord[],
+            sessionHistory: [
+              {
+                topic: summary.topic,
+                accuracy: summary.accuracy,
+                missedTopics: summary.missedTopics
+              },
+              ...sessionHistory.map((entry) => ({
+                topic: entry.topic,
+                accuracy: entry.accuracy,
+                missedTopics: entry.missedTopics
+              }))
+            ]
+          })
+        );
+        setCoachHistory((prev) => [coachSnapshot, ...prev].slice(0, 20));
       }
       if (mode === "diagnostic") setDiagnosticDone(true);
       setMode("review");
@@ -1638,6 +1829,9 @@ export default function USCAccountingPracticeTool() {
     setLastSessionSummary(null);
     setMistakeBook([]);
     setSessionHistory([]);
+    setCoachHistory([]);
+    setCoachView("live");
+    setRevealedCoachAnswers([]);
     setMissionDay(todayLocalKey());
     setCompletedMissionIds([]);
     setVaultMessage("");
@@ -1716,6 +1910,42 @@ export default function USCAccountingPracticeTool() {
     setCompletedMissionIds((prev) => prev.includes(missionId) ? prev.filter((id) => id !== missionId) : [...prev, missionId]);
   }
 
+  function launchConceptFix(priority: ConceptPriority) {
+    const reviewPack = getConceptReviewPack(priority.lesson.id, questionBank);
+    if (reviewPack.length) {
+      launch("drill", {
+        customQuestions: reviewPack,
+        customTitle: `${priority.lesson.title} fix pack`,
+        topicOverride: priority.lesson.topic
+      });
+      return;
+    }
+
+    switch (priority.lesson.recommendedTool) {
+      case "entries":
+        setMode("entries");
+        return;
+      case "simulators":
+        setMode("simulators");
+        return;
+      case "effects":
+        setMode("effects");
+        return;
+      case "tvm":
+        setMode("tvm");
+        return;
+      case "learn":
+        setMode("learn");
+        return;
+      default:
+        launch("drill", { topicOverride: priority.lesson.topic });
+    }
+  }
+
+  function toggleCoachAnswer(lessonId: string) {
+    setRevealedCoachAnswers((prev) => prev.includes(lessonId) ? prev.filter((id) => id !== lessonId) : [...prev, lessonId]);
+  }
+
   function exportProgress() {
     if (typeof window === "undefined") return;
     const payload: ProgressSnapshot = {
@@ -1728,6 +1958,7 @@ export default function USCAccountingPracticeTool() {
       sessionCount,
       lastSessionSummary,
       sessionHistory,
+      coachHistory,
       mistakeBook,
       missionDay,
       completedMissionIds
@@ -1757,6 +1988,7 @@ export default function USCAccountingPracticeTool() {
       setSessionCount(parsed.sessionCount || 0);
       setLastSessionSummary(parsed.lastSessionSummary || null);
       setSessionHistory(Array.isArray(parsed.sessionHistory) ? parsed.sessionHistory : []);
+      setCoachHistory(Array.isArray(parsed.coachHistory) ? parsed.coachHistory : []);
       setMistakeBook(Array.isArray(parsed.mistakeBook) ? parsed.mistakeBook : []);
       const importedDay = typeof parsed.missionDay === "string" ? parsed.missionDay : todayMissionKey;
       setMissionDay(importedDay === todayMissionKey ? importedDay : todayMissionKey);
@@ -1922,29 +2154,32 @@ export default function USCAccountingPracticeTool() {
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="secondary" onClick={() => setMode("learn")}>
                   <BookOpenText className="mr-3 h-5 w-5" /> 2. Learn fast with rescue cards
                 </Button>
+                <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => { setCoachView("live"); setMode("coach"); }}>
+                  <Brain className="mr-3 h-5 w-5" /> 3. Adaptive concept coach
+                </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => launch("drill")}>
-                  <Target className="mr-3 h-5 w-5" /> 3. Drill me in bursts
+                  <Target className="mr-3 h-5 w-5" /> 4. Drill me in bursts
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => launch("weak")}>
-                  <RefreshCw className="mr-3 h-5 w-5" /> 4. Recycle weak spots
+                  <RefreshCw className="mr-3 h-5 w-5" /> 5. Recycle weak spots
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("effects")}>
-                  <LineChart className="mr-3 h-5 w-5" /> 5. Statement effects lab
+                  <LineChart className="mr-3 h-5 w-5" /> 6. Statement effects lab
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("cases")}>
-                  <BookOpenText className="mr-3 h-5 w-5" /> 6. Mini-case lab
+                  <BookOpenText className="mr-3 h-5 w-5" /> 7. Mini-case lab
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("simulators")}>
-                  <Calculator className="mr-3 h-5 w-5" /> 7. Inventory + PP&E simulator
+                  <Calculator className="mr-3 h-5 w-5" /> 8. Inventory + PP&E simulator
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("tvm")}>
-                  <Calculator className="mr-3 h-5 w-5" /> 8. TVM timeline lab
+                  <Calculator className="mr-3 h-5 w-5" /> 9. TVM timeline lab
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("entries")}>
-                  <BookOpenText className="mr-3 h-5 w-5" /> 9. Journal-entry workbench
+                  <BookOpenText className="mr-3 h-5 w-5" /> 10. Journal-entry workbench
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("mistakes")}>
-                  <ShieldAlert className="mr-3 h-5 w-5" /> 10. Mistake book
+                  <ShieldAlert className="mr-3 h-5 w-5" /> 11. Mistake book
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
                   <Button className="rounded-2xl py-6" variant="default" onClick={() => launch("mockConfidence")}>
@@ -2002,6 +2237,7 @@ export default function USCAccountingPracticeTool() {
             <Tabs value={mode} onValueChange={handleModeChange} className="space-y-4">
               <TabsList className="flex w-full flex-wrap rounded-2xl">
                 <TabsTrigger value="home">Home</TabsTrigger>
+                <TabsTrigger value="coach">Coach</TabsTrigger>
                 <TabsTrigger value="review">Results</TabsTrigger>
                 <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
                 <TabsTrigger value="learn">Learn</TabsTrigger>
@@ -2053,6 +2289,38 @@ export default function USCAccountingPracticeTool() {
                         </div>
                       </div>
                     ) : null}
+                    <div className="rounded-[1.85rem] border border-white/70 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-200">Top 6 to learn next</div>
+                          <div className="mt-1 text-sm leading-6 text-white/75">
+                            These are ranked from Hanna&apos;s misses, flagged questions, confidence errors, and recurring weak topics.
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button onClick={() => { setCoachView("live"); setMode("coach"); }}>
+                            <Brain className="h-4 w-4" /> Open concept coach
+                          </Button>
+                          <Button variant="outline" onClick={() => { setMode("coach"); setCoachView("history"); }}>
+                            History
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {topCoachPriorities.map((priority) => (
+                          <div key={priority.lesson.id} className="rounded-[1.5rem] border border-white/10 bg-white/10 p-4 backdrop-blur motion-card">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge>{priority.lesson.topic}</Badge>
+                              <Badge variant="outline" className="border-white/30 bg-transparent text-white">{priority.status}</Badge>
+                            </div>
+                            <div className="mt-3 text-lg font-semibold leading-7">{priority.lesson.title}</div>
+                            <div className="mt-2 text-sm leading-6 text-white/75">{priority.whyNow}</div>
+                            <div className="mt-3 text-xs uppercase tracking-[0.18em] text-amber-200">Teach-back</div>
+                            <div className="mt-1 text-sm leading-6 text-white/85">{priority.lesson.retrievalPrompt}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
                       <div className="space-y-4">
                         <div className="rounded-[1.85rem] border border-white/70 bg-white/90 p-5 shadow-sm">
@@ -2176,6 +2444,105 @@ export default function USCAccountingPracticeTool() {
                 </Card>
               </TabsContent>
 
+              <TabsContent value="coach">
+                <Card className="rounded-[2rem] shadow-lg">
+                  <CardHeader>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <CardTitle>Adaptive concept coach</CardTitle>
+                        <div className="mt-2 text-sm leading-6 text-slate-600">
+                          Six concepts, ranked by what Hanna is actually missing, flagging, or understanding too shakily to trust yet.
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant={coachView === "live" ? "default" : "outline"} onClick={() => setCoachView("live")}>
+                          Live priorities
+                        </Button>
+                        <Button variant={coachView === "history" ? "default" : "outline"} onClick={() => setCoachView("history")}>
+                          History
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    {coachView === "live" ? (
+                      <>
+                        <div className="grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
+                          <div className="rounded-[1.85rem] border border-white/70 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 shadow-sm">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                              <div>
+                                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">Current teaching queue</div>
+                                <div className="mt-1 text-sm leading-6 text-slate-600">
+                                  If Hanna learns these six cold, her exam floor rises fast because these are the biggest current leaks or the highest-risk misunderstandings.
+                                </div>
+                              </div>
+                              <PulseRing
+                                value={Math.max(12, 100 - Math.min(88, Math.round(topCoachPriorities.reduce((sum, item) => sum + item.score, 0) / Math.max(topCoachPriorities.length, 1))))}
+                                label="Coach calm"
+                                sublabel="Higher means fewer urgent concept leaks."
+                                tone={topCoachPriorities.some((item) => item.status === "Urgent") ? "rose" : "emerald"}
+                              />
+                            </div>
+                          </div>
+                          <div className="rounded-[1.85rem] border border-amber-100 bg-amber-50/70 p-5">
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">How to use this tool</div>
+                            <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+                              <div>1. Read the card slowly until Hanna can explain it back in her own words.</div>
+                              <div>2. Make her answer the retrieval prompt before revealing the answer.</div>
+                              <div>3. Hit the fix-pack button immediately while the idea is still active.</div>
+                              <div>4. Come back after the next session to see what left the list and what moved up.</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4">
+                          {topCoachPriorities.map((priority) => (
+                            <CoachPriorityCard
+                              key={priority.lesson.id}
+                              priority={priority}
+                              revealed={revealedCoachAnswers.includes(priority.lesson.id)}
+                              onToggleAnswer={() => toggleCoachAnswer(priority.lesson.id)}
+                              onLaunchFix={() => launchConceptFix(priority)}
+                            />
+                          ))}
+                        </div>
+
+                        <div className="grid gap-4 xl:grid-cols-[1fr,1fr]">
+                          <div className="rounded-[1.85rem] border border-white/70 bg-white/90 p-5 shadow-sm">
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Recently stabilized</div>
+                            <div className="mt-4 grid gap-3">
+                              {stabilizedConcepts.length ? stabilizedConcepts.slice(0, 6).map((lesson) => (
+                                <div key={lesson.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                  <div className="flex flex-wrap gap-2">
+                                    <Badge>{lesson.topic}</Badge>
+                                    <Badge variant="outline">Currently calmer</Badge>
+                                  </div>
+                                  <div className="mt-3 font-semibold text-slate-900">{lesson.title}</div>
+                                  <div className="mt-2 text-sm leading-6 text-slate-600">{lesson.whyItMatters}</div>
+                                </div>
+                              )) : (
+                                <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">Once concepts leave the top-six queue, they will show up here as stabilized.</div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-[1.85rem] border border-white/70 bg-white/90 p-5 shadow-sm">
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Constant reinforcement loop</div>
+                            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
+                              <div>This coach updates whenever question evidence changes, so the list is not static tutoring advice. It is a live diagnosis.</div>
+                              <div>Wrong answers raise a concept. Flagged questions keep it alive. Confident misses push it higher. Clean, confident reps gradually calm it down.</div>
+                              <div>That means Hanna gets a moving list of what to learn next, plus a record of what used to be weak and is now stabilizing.</div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <CoachHistoryTimeline history={coachHistory} currentPriorityIds={currentCoachPriorityIds} />
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               <TabsContent value="review">
                 <Card className="rounded-[2rem] shadow-lg">
                   <CardHeader>
@@ -2234,6 +2601,9 @@ export default function USCAccountingPracticeTool() {
                               </Button>
                               <Button variant="outline" onClick={() => launchReviewPack(missedReviewQuestions, "Missed-question review")} disabled={!missedReviewQuestions.length}>
                                 Retry misses
+                              </Button>
+                              <Button variant="outline" onClick={() => { setCoachView("live"); setMode("coach"); }}>
+                                Open coach
                               </Button>
                               <Button variant="outline" onClick={() => launch("weak")} disabled={!lastSessionSummary.missedTopics.length}>
                                 Weak spots
