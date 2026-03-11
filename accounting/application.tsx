@@ -189,18 +189,47 @@ const studyBoards: StickerItem[] = [
 ];
 
 type ActiveSessionMode = "diagnostic" | "drill" | "weak" | "mockConfidence" | "mockExam" | "mistakes";
-type ViewMode = "home" | "learn" | "effects" | "cases" | "simulators" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
+type ViewMode = "home" | "review" | "learn" | "effects" | "cases" | "simulators" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
 
 type ConfidenceLevel = "Guessing" | "Pretty sure" | "Certain";
 
+type SessionQuestionRecord = {
+  question: BankQuestion;
+  correct: boolean;
+  confidence: ConfidenceLevel;
+  secondsSpent: number;
+  flagged: boolean;
+  answerGiven: string;
+  correctAnswer: string;
+};
+
+type SessionTopicSummary = {
+  topic: string;
+  correct: number;
+  total: number;
+  avgSeconds: number;
+  flagged: number;
+  overconfidentErrors: number;
+};
+
 type SessionSummary = {
   mode: ActiveSessionMode;
+  label: string;
   score: number;
   total: number;
+  accuracy: number;
   topic: string;
   missedTopics: string[];
   overconfidentErrors: number;
   lowConfidenceWins: number;
+  flaggedCount: number;
+  totalSeconds: number;
+  averageSeconds: number;
+  paceTargetSeconds: number;
+  paceStatus: "On pace" | "A little slow" | "Too slow";
+  recommendedNextStep: string;
+  questionRecords: SessionQuestionRecord[];
+  topicBreakdown: SessionTopicSummary[];
 };
 
 type StatementGuess = Record<keyof StatementEffect["answer"], StatementDirection | "">;
@@ -283,6 +312,8 @@ type QuestionViewProps = {
   setShowHint: React.Dispatch<React.SetStateAction<boolean>>;
   confidence: ConfidenceLevel | "";
   setConfidence: React.Dispatch<React.SetStateAction<ConfidenceLevel | "">>;
+  flagged: boolean;
+  onToggleFlag: () => void;
   onSubmit: () => void;
   onNext: () => void;
 };
@@ -381,6 +412,44 @@ const journalScenarios: JournalScenario[] = [
     ],
     why: "Two of the six months have been earned, so one-third of the liability becomes revenue.",
     hint: "Move the earned portion out of the liability account."
+  },
+  {
+    id: 6,
+    title: "Record annual straight-line depreciation",
+    topic: "PP&E + Intangibles",
+    prompt: "Equipment cost 66,000, salvage value is 6,000, and useful life is 5 years. Record one full year of straight-line depreciation.",
+    expected: [
+      { side: "Dr", account: "Depreciation Expense", amount: 12000 },
+      { side: "Cr", account: "Accumulated Depreciation Equipment", amount: 12000 }
+    ],
+    why: "Annual straight-line depreciation is depreciable base divided by useful life: (66,000 - 6,000) / 5 = 12,000.",
+    hint: "Debit the expense, credit accumulated depreciation, not the asset directly."
+  },
+  {
+    id: 7,
+    title: "Sell equipment at a gain",
+    topic: "PP&E + Intangibles",
+    prompt: "Equipment originally cost 66,000 and has accumulated depreciation of 48,000. It is sold for 20,000 cash. Record the disposal.",
+    expected: [
+      { side: "Dr", account: "Cash", amount: 20000 },
+      { side: "Dr", account: "Accumulated Depreciation Equipment", amount: 48000 },
+      { side: "Cr", account: "Equipment", amount: 66000 },
+      { side: "Cr", account: "Gain on Sale of Equipment", amount: 2000 }
+    ],
+    why: "Book value is 18,000, so cash proceeds above that amount create a gain. Remove both the asset and its accumulated depreciation.",
+    hint: "Get book value first, then compare it with the cash received."
+  },
+  {
+    id: 8,
+    title: "Issue a short-term note for cash",
+    topic: "Current Liabilities",
+    prompt: "A company borrows 24,000 by signing a 6-month note payable. Record the issuance of the note.",
+    expected: [
+      { side: "Dr", account: "Cash", amount: 24000 },
+      { side: "Cr", account: "Notes Payable", amount: 24000 }
+    ],
+    why: "At issuance, the company receives cash and creates the principal liability. Interest is recognized later over time.",
+    hint: "Do not record interest expense on day one unless the question says interest has already accrued."
   }
 ];
 
@@ -391,6 +460,134 @@ function readNumber(value: string) {
 
 function formatMoney(value: number) {
   return moneyFormatter.format(Math.round(value * 100) / 100);
+}
+
+function formatDuration(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function paceTargetSeconds(mode: ActiveSessionMode) {
+  switch (mode) {
+    case "diagnostic":
+      return 75;
+    case "drill":
+    case "mistakes":
+      return 60;
+    case "weak":
+      return 70;
+    case "mockConfidence":
+      return 80;
+    case "mockExam":
+      return 75;
+    default:
+      return 70;
+  }
+}
+
+function dedupeQuestions(questions: BankQuestion[]) {
+  const seen = new Set<number>();
+  return questions.filter((question) => {
+    if (seen.has(question.id)) return false;
+    seen.add(question.id);
+    return true;
+  });
+}
+
+function buildSessionSummary({
+  mode,
+  label,
+  score,
+  total,
+  topic,
+  records
+}: {
+  mode: ActiveSessionMode;
+  label: string;
+  score: number;
+  total: number;
+  topic: string;
+  records: SessionQuestionRecord[];
+}): SessionSummary {
+  const totalSeconds = records.reduce((sum, record) => sum + record.secondsSpent, 0);
+  const averageSeconds = records.length ? totalSeconds / records.length : 0;
+  const targetSeconds = paceTargetSeconds(mode);
+  const paceStatus = averageSeconds <= targetSeconds
+    ? "On pace"
+    : averageSeconds <= targetSeconds * 1.25
+      ? "A little slow"
+      : "Too slow";
+  const missedTopics = Array.from(
+    records
+      .filter((record) => !record.correct)
+      .reduce((map, record) => map.set(record.question.topic, (map.get(record.question.topic) || 0) + 1), new Map<string, number>())
+      .entries()
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([topicName]) => topicName);
+  const overconfidentErrors = records.filter((record) => !record.correct && record.confidence === "Certain").length;
+  const lowConfidenceWins = records.filter((record) => record.correct && record.confidence === "Guessing").length;
+  const flaggedCount = records.filter((record) => record.flagged).length;
+  const topicBreakdown = Array.from(
+    records.reduce((map, record) => {
+      const current = map.get(record.question.topic) ?? { topic: record.question.topic, correct: 0, total: 0, seconds: 0, flagged: 0, overconfidentErrors: 0 };
+      current.total += 1;
+      current.seconds += record.secondsSpent;
+      current.correct += record.correct ? 1 : 0;
+      current.flagged += record.flagged ? 1 : 0;
+      current.overconfidentErrors += !record.correct && record.confidence === "Certain" ? 1 : 0;
+      map.set(record.question.topic, current);
+      return map;
+    }, new Map<string, { topic: string; correct: number; total: number; seconds: number; flagged: number; overconfidentErrors: number }>())
+      .values()
+  )
+    .map((item) => ({
+      topic: item.topic,
+      correct: item.correct,
+      total: item.total,
+      avgSeconds: item.total ? item.seconds / item.total : 0,
+      flagged: item.flagged,
+      overconfidentErrors: item.overconfidentErrors
+    }))
+    .sort((a, b) => {
+      const aAccuracy = a.total ? a.correct / a.total : 0;
+      const bAccuracy = b.total ? b.correct / b.total : 0;
+      if (aAccuracy !== bAccuracy) return aAccuracy - bAccuracy;
+      return b.total - a.total;
+    });
+
+  const worstTopic = topicBreakdown.find((item) => item.correct < item.total)?.topic;
+  const recommendedNextStep = flaggedCount >= 2
+    ? "Run the flagged review pack before another mock."
+    : overconfidentErrors >= 2
+      ? "Do a slow explanation round on the overconfident misses before you trust the score."
+      : worstTopic
+        ? `Recycle ${worstTopic} next. That is where the cleanest points are still leaking.`
+        : mode === "mockConfidence"
+          ? "Step up to the exam mock while the mix still feels controlled."
+          : "Take one more mixed run and try to hold the pace without losing accuracy.";
+
+  return {
+    mode,
+    label,
+    score,
+    total,
+    accuracy: total ? Math.round((score / total) * 100) : 0,
+    topic,
+    missedTopics,
+    overconfidentErrors,
+    lowConfidenceWins,
+    flaggedCount,
+    totalSeconds,
+    averageSeconds,
+    paceTargetSeconds: targetSeconds,
+    paceStatus,
+    recommendedNextStep,
+    questionRecords: records,
+    topicBreakdown
+  };
 }
 
 function takeEndingInventory(
@@ -794,6 +991,12 @@ export default function USCAccountingPracticeTool() {
   const [sessionScore, setSessionScore] = useState(0);
   const [sessionMisses, setSessionMisses] = useState<Record<string, number>>({});
   const [sessionConfidenceLog, setSessionConfidenceLog] = useState<Array<{ confidence: ConfidenceLevel; correct: boolean }>>([]);
+  const [sessionQuestionLog, setSessionQuestionLog] = useState<SessionQuestionRecord[]>([]);
+  const [flaggedQuestionIds, setFlaggedQuestionIds] = useState<number[]>([]);
+  const [activeSessionLabel, setActiveSessionLabel] = useState<string | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
+  const [questionStartedAt, setQuestionStartedAt] = useState<number | null>(null);
+  const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [streak, setStreak] = useState(0);
   const [missedTopics, setMissedTopics] = useState<Record<string, number>>({});
@@ -834,6 +1037,7 @@ export default function USCAccountingPracticeTool() {
   const topics = ["All", ...topicRescues.map((t) => t.topic)];
   const diagnosticQuestions = useMemo(() => questionBank.filter((q) => q.family === "diagnostic"), []);
   const currentQuestion = sessionQuestions[questionIndex];
+  const currentQuestionFlagged = currentQuestion ? flaggedQuestionIds.includes(currentQuestion.id) : false;
   const accuracy = attempts ? Math.round((score / attempts) * 100) : 0;
   const moodText = moods[(attempts + rescueIndex) % moods.length];
   const rankedWeakTopics = Object.entries(missedTopics).sort((a, b) => b[1] - a[1]);
@@ -849,6 +1053,18 @@ export default function USCAccountingPracticeTool() {
     if (b.misses !== a.misses) return b.misses - a.misses;
     return new Date(b.lastWrongAt).getTime() - new Date(a.lastWrongAt).getTime();
   });
+  const flaggedReviewQuestions = lastSessionSummary
+    ? dedupeQuestions(lastSessionSummary.questionRecords.filter((record) => record.flagged).map((record) => record.question))
+    : [];
+  const missedReviewQuestions = lastSessionSummary
+    ? dedupeQuestions(lastSessionSummary.questionRecords.filter((record) => !record.correct).map((record) => record.question))
+    : [];
+  const overconfidentReviewRecords = lastSessionSummary
+    ? lastSessionSummary.questionRecords.filter((record) => !record.correct && record.confidence === "Certain")
+    : [];
+  const slowestReviewRecords = lastSessionSummary
+    ? [...lastSessionSummary.questionRecords].sort((a, b) => b.secondsSpent - a.secondsSpent).slice(0, 3)
+    : [];
   const effectFields: Array<{ key: keyof StatementEffect["answer"]; label: string }> = [
     { key: "assets", label: "Assets" },
     { key: "liabilities", label: "Liabilities" },
@@ -879,6 +1095,18 @@ export default function USCAccountingPracticeTool() {
     window.localStorage.setItem(MISTAKE_BOOK_STORAGE_KEY, JSON.stringify(mistakeBook));
   }, [mistakeBook]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !sessionStartedAt || !sessionQuestions.length || !isSessionMode(mode)) {
+      setLiveSessionSeconds(0);
+      return;
+    }
+
+    const updateElapsed = () => setLiveSessionSeconds(Math.max(0, Math.round((Date.now() - sessionStartedAt) / 1000)));
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [mode, sessionQuestions.length, sessionStartedAt]);
+
   function updateMistakeBook(question: BankQuestion) {
     setMistakeBook((prev) => {
       const existing = prev.find((item) => item.question.id === question.id);
@@ -897,54 +1125,86 @@ export default function USCAccountingPracticeTool() {
     setMistakeBook((prev) => prev.filter((item) => item.question.id !== questionId));
   }
 
-  function launch(modeName: ActiveSessionMode, options?: { topicOverride?: string }) {
+  function launch(modeName: ActiveSessionMode, options?: { topicOverride?: string; customQuestions?: BankQuestion[]; customTitle?: string }) {
     const topicForSession = options?.topicOverride ?? selectedTopic;
-    const nextSession = modeName === "diagnostic"
-      ? diagnosticQuestions
-      : modeName === "mistakes"
-        ? prioritizedMistakes.slice(0, 8).map((item) => item.question)
-        : buildSession(modeName, topicForSession, missedTopics, sessionCount + 1);
+    const nextSession = options?.customQuestions
+      ? dedupeQuestions(options.customQuestions)
+      : modeName === "diagnostic"
+        ? diagnosticQuestions
+        : modeName === "mistakes"
+          ? prioritizedMistakes.slice(0, 8).map((item) => item.question)
+          : buildSession(modeName, topicForSession, missedTopics, sessionCount + 1);
     setMode(modeName);
     setSessionQuestions(nextSession);
     setQuestionIndex(0);
     setSessionScore(0);
     setSessionMisses({});
     setSessionConfidenceLog([]);
+    setSessionQuestionLog([]);
+    setFlaggedQuestionIds([]);
+    setActiveSessionLabel(options?.customTitle ?? modeLabel(modeName));
+    setSessionStartedAt(Date.now());
+    setQuestionStartedAt(Date.now());
+    setLiveSessionSeconds(0);
     setLoadedSessionMode(modeName);
     setLoadedSessionTopic(topicForSession);
     setSessionCount((x: number) => x + 1);
     resetQuestionState();
   }
 
+  function launchReviewPack(questions: BankQuestion[], label: string) {
+    if (!questions.length) return;
+    launch("drill", {
+      customQuestions: questions,
+      customTitle: label,
+      topicOverride: "Review pack"
+    });
+  }
+
+  function rerunSession(summary: SessionSummary) {
+    if (summary.label !== modeLabel(summary.mode)) {
+      launch(summary.mode, {
+        customQuestions: summary.questionRecords.map((record) => record.question),
+        customTitle: summary.label,
+        topicOverride: summary.topic
+      });
+      return;
+    }
+
+    launch(summary.mode, { topicOverride: summary.topic });
+  }
+
   function nextQuestion() {
     if (questionIndex + 1 >= sessionQuestions.length) {
       if (isSessionMode(mode)) {
-        const overconfidentErrors = sessionConfidenceLog.filter((item) => !item.correct && item.confidence === "Certain").length;
-        const lowConfidenceWins = sessionConfidenceLog.filter((item) => item.correct && item.confidence === "Guessing").length;
-        setLastSessionSummary({
+        setLastSessionSummary(buildSessionSummary({
           mode,
+          label: activeSessionLabel ?? modeLabel(mode),
           score: sessionScore,
           total: sessionQuestions.length,
           topic: loadedSessionTopic,
-          missedTopics: Object.entries(sessionMisses)
-            .sort((a, b) => b[1] - a[1])
-            .map(([topic]) => topic),
-          overconfidentErrors,
-          lowConfidenceWins
-        });
+          records: sessionQuestionLog
+        }));
       }
       if (mode === "diagnostic") setDiagnosticDone(true);
-      setMode("home");
+      setMode("review");
       setSessionQuestions([]);
       setQuestionIndex(0);
       setSessionScore(0);
       setSessionMisses({});
       setSessionConfidenceLog([]);
+      setSessionQuestionLog([]);
+      setFlaggedQuestionIds([]);
+      setActiveSessionLabel(null);
+      setSessionStartedAt(null);
+      setQuestionStartedAt(null);
+      setLiveSessionSeconds(0);
       setLoadedSessionMode(null);
       resetQuestionState();
       return;
     }
     setQuestionIndex((i: number) => i + 1);
+    setQuestionStartedAt(Date.now());
     resetQuestionState();
   }
 
@@ -956,8 +1216,20 @@ export default function USCAccountingPracticeTool() {
     } else {
       correct = Math.abs(Number(numericInput) - Number(currentQuestion.answer)) < 0.01;
     }
+    const secondsSpent = questionStartedAt ? Math.max(1, Math.round((Date.now() - questionStartedAt) / 1000)) : 0;
+    const answerGiven = currentQuestion.type === "numeric" ? numericInput : selectedAnswer;
+    const flagged = flaggedQuestionIds.includes(currentQuestion.id);
     setAttempts((a: number) => a + 1);
     setSessionConfidenceLog((prev) => [...prev, { confidence, correct }]);
+    setSessionQuestionLog((prev) => [...prev, {
+      question: currentQuestion,
+      correct,
+      confidence,
+      secondsSpent,
+      flagged,
+      answerGiven,
+      correctAnswer: String(currentQuestion.answer)
+    }]);
     if (correct) {
       setScore((s: number) => s + 1);
       setSessionScore((s: number) => s + 1);
@@ -981,6 +1253,12 @@ export default function USCAccountingPracticeTool() {
     setSessionScore(0);
     setSessionMisses({});
     setSessionConfidenceLog([]);
+    setSessionQuestionLog([]);
+    setFlaggedQuestionIds([]);
+    setActiveSessionLabel(null);
+    setSessionStartedAt(null);
+    setQuestionStartedAt(null);
+    setLiveSessionSeconds(0);
     setSelectedAnswer("");
     setNumericInput("");
     setConfidence("");
@@ -1020,7 +1298,7 @@ export default function USCAccountingPracticeTool() {
   }
 
   function handleModeChange(nextMode: string) {
-    if (nextMode === "mistakes" || nextMode === "entries") {
+    if (nextMode === "mistakes" || nextMode === "entries" || nextMode === "review") {
       setMode(nextMode as ViewMode);
       return;
     }
@@ -1048,6 +1326,21 @@ export default function USCAccountingPracticeTool() {
 
   function updatePpeInput(key: keyof PpeInputs, value: string) {
     setPpeInputs((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleCurrentQuestionFlag() {
+    if (!currentQuestion) return;
+    const nextFlagged = !flaggedQuestionIds.includes(currentQuestion.id);
+    setFlaggedQuestionIds((prev) =>
+      nextFlagged ? [...prev, currentQuestion.id] : prev.filter((id) => id !== currentQuestion.id)
+    );
+    if (revealed) {
+      setSessionQuestionLog((prev) =>
+        prev.map((record) =>
+          record.question.id === currentQuestion.id ? { ...record, flagged: nextFlagged } : record
+        )
+      );
+    }
   }
 
   function checkJournalEntry() {
@@ -1203,6 +1496,7 @@ export default function USCAccountingPracticeTool() {
             <Tabs value={mode} onValueChange={handleModeChange} className="space-y-4">
               <TabsList className="flex w-full flex-wrap rounded-2xl">
                 <TabsTrigger value="home">Home</TabsTrigger>
+                <TabsTrigger value="review">Results</TabsTrigger>
                 <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
                 <TabsTrigger value="learn">Learn</TabsTrigger>
                 <TabsTrigger value="drill">Drill</TabsTrigger>
@@ -1226,19 +1520,25 @@ export default function USCAccountingPracticeTool() {
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                           <div>
                             <div className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-700">Latest run</div>
-                            <div className="mt-1 text-2xl font-black text-slate-900">{modeLabel(lastSessionSummary.mode)}: {lastSessionSummary.score}/{lastSessionSummary.total}</div>
+                            <div className="mt-1 text-2xl font-black text-slate-900">{lastSessionSummary.label}: {lastSessionSummary.score}/{lastSessionSummary.total}</div>
                             <div className="mt-2 text-sm leading-6 text-slate-600">
                               Topic setting: <span className="font-semibold text-slate-800">{lastSessionSummary.topic}</span>
                               {lastSessionSummary.missedTopics.length ? ` · Focus next on ${lastSessionSummary.missedTopics.slice(0, 2).join(" and ")}.` : " · Clean run with no repeated weak spots."}
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
+                              <Badge variant="outline">Accuracy: {lastSessionSummary.accuracy}%</Badge>
+                              <Badge variant="outline">Time: {formatDuration(lastSessionSummary.totalSeconds)}</Badge>
+                              <Badge variant="outline">Pace: {lastSessionSummary.paceStatus}</Badge>
                               <Badge variant="outline">Overconfident misses: {lastSessionSummary.overconfidentErrors}</Badge>
                               <Badge variant="outline">Low-confidence wins: {lastSessionSummary.lowConfidenceWins}</Badge>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Button onClick={() => launch(lastSessionSummary.mode, { topicOverride: lastSessionSummary.topic })}>
+                            <Button onClick={() => rerunSession(lastSessionSummary)}>
                               <RefreshCw className="h-4 w-4" /> Run again
+                            </Button>
+                            <Button variant="outline" onClick={() => setMode("review")}>
+                              <LineChart className="h-4 w-4" /> Open results
                             </Button>
                             <Button variant="outline" onClick={() => launch("weak")} disabled={!rankedWeakTopics.length}>
                               <ShieldAlert className="h-4 w-4" /> Fix misses
@@ -1300,6 +1600,138 @@ export default function USCAccountingPracticeTool() {
                 </Card>
               </TabsContent>
 
+              <TabsContent value="review">
+                <Card className="rounded-[2rem] shadow-lg">
+                  <CardHeader>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <CardTitle>Latest results</CardTitle>
+                        <div className="mt-2 text-sm leading-6 text-slate-600">
+                          This is the exam-room debrief: score, pace, danger topics, and what the next session should be.
+                        </div>
+                      </div>
+                      {lastSessionSummary ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button onClick={() => rerunSession(lastSessionSummary)}>
+                            <RefreshCw className="h-4 w-4" /> Run again
+                          </Button>
+                          <Button variant="outline" onClick={() => setMode("home")}>
+                            Back home
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    {lastSessionSummary ? (
+                      <>
+                        <div className="grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
+                          <div className="rounded-[1.85rem] border border-white/70 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 shadow-sm">
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">{lastSessionSummary.label}</div>
+                            <div className="mt-2 text-4xl font-black text-slate-900">{lastSessionSummary.score} / {lastSessionSummary.total}</div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                              Accuracy {lastSessionSummary.accuracy}% · {formatDuration(lastSessionSummary.totalSeconds)} total · {Math.round(lastSessionSummary.averageSeconds)} sec/question on average.
+                            </div>
+                            <div className="mt-4 grid gap-3 md:grid-cols-4">
+                              <LabMetric label="Pace" value={lastSessionSummary.paceStatus} note={`Target: ${lastSessionSummary.paceTargetSeconds} sec/question`} tone="sky" />
+                              <LabMetric label="Flagged" value={String(lastSessionSummary.flaggedCount)} note="Questions Hanna marked for another pass." tone="amber" />
+                              <LabMetric label="Overconfident misses" value={String(lastSessionSummary.overconfidentErrors)} note="Wrong while feeling certain." tone="rose" />
+                              <LabMetric label="Low-confidence wins" value={String(lastSessionSummary.lowConfidenceWins)} note="Right, but not trusted yet." tone="emerald" />
+                            </div>
+                          </div>
+                          <div className="rounded-[1.85rem] border border-rose-100 bg-rose-50/70 p-5">
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-700">Next move</div>
+                            <div className="mt-3 text-lg font-semibold leading-8 text-slate-900">{lastSessionSummary.recommendedNextStep}</div>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <Button variant="outline" onClick={() => launchReviewPack(flaggedReviewQuestions, "Flagged review")} disabled={!flaggedReviewQuestions.length}>
+                                Retry flagged
+                              </Button>
+                              <Button variant="outline" onClick={() => launchReviewPack(missedReviewQuestions, "Missed-question review")} disabled={!missedReviewQuestions.length}>
+                                Retry misses
+                              </Button>
+                              <Button variant="outline" onClick={() => launch("weak")} disabled={!lastSessionSummary.missedTopics.length}>
+                                Weak spots
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 xl:grid-cols-[0.95fr,1.05fr]">
+                          <div className="rounded-[1.8rem] border border-white/70 bg-white/85 p-5 shadow-sm">
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Topic breakdown</div>
+                            <div className="mt-4 grid gap-3">
+                              {lastSessionSummary.topicBreakdown.map((item) => {
+                                const accuracyValue = item.total ? Math.round((item.correct / item.total) * 100) : 0;
+                                return (
+                                  <div key={item.topic} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                      <div>
+                                        <div className="font-semibold text-slate-900">{item.topic}</div>
+                                        <div className="mt-1 text-sm leading-6 text-slate-600">
+                                          {item.correct} / {item.total} correct · {Math.round(item.avgSeconds)} sec/question average
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        <Badge variant="outline">Accuracy: {accuracyValue}%</Badge>
+                                        <Badge variant="outline">Flagged: {item.flagged}</Badge>
+                                        <Badge variant="outline">Certain + wrong: {item.overconfidentErrors}</Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="rounded-[1.8rem] border border-amber-100 bg-amber-50/70 p-5">
+                              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Slowest questions</div>
+                              <div className="mt-4 grid gap-3">
+                                {slowestReviewRecords.length ? slowestReviewRecords.map((record) => (
+                                  <div key={`slow-${record.question.id}`} className="rounded-3xl border border-amber-100 bg-white/80 p-4">
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge>{record.question.topic}</Badge>
+                                      <Badge variant="outline">{record.secondsSpent} sec</Badge>
+                                      <Badge variant="outline">{record.correct ? "Correct" : "Wrong"}</Badge>
+                                    </div>
+                                    <div className="mt-3 font-semibold text-slate-900">{record.question.prompt}</div>
+                                  </div>
+                                )) : (
+                                  <div className="rounded-3xl border border-dashed p-6 text-center text-slate-600">No timing data yet.</div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-[1.8rem] border border-rose-100 bg-rose-50/70 p-5">
+                              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-700">Overconfident misses</div>
+                              <div className="mt-4 grid gap-3">
+                                {overconfidentReviewRecords.length ? overconfidentReviewRecords.map((record) => (
+                                  <div key={`certain-${record.question.id}`} className="rounded-3xl border border-rose-100 bg-white/80 p-4">
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge>{record.question.topic}</Badge>
+                                      <Badge variant="outline">Said: {record.answerGiven || "blank"}</Badge>
+                                      <Badge variant="outline">Correct: {record.correctAnswer}</Badge>
+                                    </div>
+                                    <div className="mt-3 font-semibold text-slate-900">{record.question.prompt}</div>
+                                    <div className="mt-2 text-sm leading-6 text-slate-600">{record.question.explanation}</div>
+                                  </div>
+                                )) : (
+                                  <div className="rounded-3xl border border-dashed p-6 text-center text-slate-600">No overconfident misses on the last run.</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-3xl border border-dashed p-10 text-center text-slate-600">
+                        Finish one question session first, then the results tab will show pace, topic breakdowns, and retry packs.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               <TabsContent value="learn">
                 <Card className="rounded-[2rem] shadow-lg">
                   <CardHeader>
@@ -1355,16 +1787,19 @@ export default function USCAccountingPracticeTool() {
                 <Card className="rounded-[2rem] shadow-lg">
                   <CardHeader>
                     <div className="flex items-center justify-between gap-4">
-                      <CardTitle>6-question diagnostic</CardTitle>
+                      <CardTitle>{activeSessionLabel ?? "6-question diagnostic"}</CardTitle>
                       <div className="w-56"><Progress value={sessionProgressValue} className="h-3" /></div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Run: {activeSessionLabel ?? "Diagnostic"}</Badge>
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                      <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
+                      <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1373,7 +1808,7 @@ export default function USCAccountingPracticeTool() {
                 <Card className="rounded-[2rem] shadow-lg">
                   <CardHeader>
                     <div className="flex items-center justify-between gap-4">
-                      <CardTitle>Burst drill</CardTitle>
+                      <CardTitle>{activeSessionLabel ?? "Burst drill"}</CardTitle>
                       <div className="flex flex-wrap gap-2">
                         {topics.map((topic) => (
                           <Button key={topic} variant={selectedTopic === topic ? "default" : "outline"} className="rounded-full" onClick={() => chooseTopic(topic)}>{topic}</Button>
@@ -1382,29 +1817,39 @@ export default function USCAccountingPracticeTool() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">Six quick reps pulled from the dynamic Midterm 2 bank. Topic changes now relaunch the drill immediately instead of leaving you on a stale set.</div>
+                    <div className="mb-4 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                      {activeSessionLabel && activeSessionLabel !== modeLabel("drill")
+                        ? "This pack was built from the latest results. Clean it up before going back into a full mixed drill."
+                        : "Six quick reps pulled from the dynamic Midterm 2 bank. Topic changes now relaunch the drill immediately instead of leaving you on a stale set."}
+                    </div>
                     <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Run: {activeSessionLabel ?? "Burst drill"}</Badge>
                       <Badge variant="outline">Topic: {loadedSessionTopic}</Badge>
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                      <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
+                      <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
 
               <TabsContent value="weak">
                 <Card className="rounded-[2rem] shadow-lg">
-                  <CardHeader><CardTitle>Weak spots recycle</CardTitle></CardHeader>
+                  <CardHeader><CardTitle>{activeSessionLabel ?? "Weak spots recycle"}</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
                     <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">This pulls from the topics you have missed most. Good. That means it is doing its job.</div>
                     {sessionQuestions.length ? (
                       <>
                         <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">Run: {activeSessionLabel ?? "Weak spots"}</Badge>
                           <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                           <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                          <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
+                          <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                         </div>
-                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                       </>
                     ) : (
                       <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">Miss a few questions first, then come back here and let the app bully the right topics.</div>
@@ -1865,11 +2310,14 @@ export default function USCAccountingPracticeTool() {
                       <>
                         <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">This run only pulls from saved misses. A correct answer clears that question out of the mistake book.</div>
                         <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">Run: {activeSessionLabel ?? "Mistake book"}</Badge>
                           <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                           <Badge variant="outline">Correct this run: {sessionScore}</Badge>
                           <Badge variant="outline">Saved mistakes remaining: {mistakeBook.length}</Badge>
+                          <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
+                          <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                         </div>
-                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                       </>
                     ) : prioritizedMistakes.length ? (
                       <>
@@ -1896,28 +2344,34 @@ export default function USCAccountingPracticeTool() {
 
               <TabsContent value="mockConfidence">
                 <Card className="rounded-[2rem] shadow-lg">
-                  <CardHeader><CardTitle>Confidence mock</CardTitle></CardHeader>
+                  <CardHeader><CardTitle>{activeSessionLabel ?? "Confidence mock"}</CardTitle></CardHeader>
                   <CardContent>
                     <div className="mb-4 rounded-3xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">This mock follows the Midterm 2 weighting but keeps the pacing gentler. Use it when the goal is stabilization, not intimidation.</div>
                     <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Run: {activeSessionLabel ?? "Confidence mock"}</Badge>
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                      <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
+                      <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
 
               <TabsContent value="mockExam">
                 <Card className="rounded-[2rem] shadow-lg">
-                  <CardHeader><CardTitle>Exam mock</CardTitle></CardHeader>
+                  <CardHeader><CardTitle>{activeSessionLabel ?? "Exam mock"}</CardTitle></CardHeader>
                   <CardContent>
                     <div className="mb-4 rounded-3xl bg-rose-50 p-4 text-sm leading-6 text-rose-950">This is the closest thing to the real mix: receivables, inventory, PP&E, liabilities, ratios, and a light TVM hit. Do it after one confidence pass or one weak-spots round.</div>
                     <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Run: {activeSessionLabel ?? "Exam mock"}</Badge>
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                      <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
+                      <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -2018,7 +2472,7 @@ function MiniCaseQuestion({ item, selected, setSelected, numeric, setNumeric, re
   );
 }
 
-function QuestionView({ question, selectedAnswer, setSelectedAnswer, numericInput, setNumericInput, revealed, showHint, setShowHint, confidence, setConfidence, onSubmit, onNext }: QuestionViewProps) {
+function QuestionView({ question, selectedAnswer, setSelectedAnswer, numericInput, setNumericInput, revealed, showHint, setShowHint, confidence, setConfidence, flagged, onToggleFlag, onSubmit, onNext }: QuestionViewProps) {
   if (!question) {
     return <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">No questions loaded for this mode yet. Launch a mode from the left panel.</div>;
   }
@@ -2034,9 +2488,15 @@ function QuestionView({ question, selectedAnswer, setSelectedAnswer, numericInpu
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{question.topic}</Badge>
-        <Badge variant="outline">{question.type === "mcq" ? "Multiple choice" : question.type === "numeric" ? "Numeric" : "Classification"}</Badge>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{question.topic}</Badge>
+          <Badge variant="outline">{question.type === "mcq" ? "Multiple choice" : question.type === "numeric" ? "Numeric" : "Classification"}</Badge>
+          {flagged ? <Badge variant="outline">Queued for review</Badge> : null}
+        </div>
+        <Button variant={flagged ? "default" : "outline"} className="rounded-full" onClick={onToggleFlag}>
+          <ShieldAlert className="h-4 w-4" /> {flagged ? "Flagged" : "Flag for review"}
+        </Button>
       </div>
       <div className="text-xl font-semibold leading-8 text-slate-900">{question.prompt}</div>
 
