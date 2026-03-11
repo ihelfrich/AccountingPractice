@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Brain, Calculator, Target, Trophy, RefreshCw, Clock3, Heart, CheckCircle2, XCircle, BookOpenText, LineChart, Sparkles, ShieldAlert, Rabbit, RotateCcw } from "lucide-react";
+import { Brain, Calculator, Target, Trophy, RefreshCw, Clock3, Heart, CheckCircle2, XCircle, BookOpenText, LineChart, Sparkles, ShieldAlert, Rabbit, RotateCcw, Download, Upload, CalendarDays, TrendingUp, Gauge } from "lucide-react";
 import {
   type BankQuestion,
   buildExamSession,
@@ -232,6 +232,47 @@ type SessionSummary = {
   topicBreakdown: SessionTopicSummary[];
 };
 
+type SessionHistoryEntry = {
+  id: string;
+  finishedAt: string;
+  mode: ActiveSessionMode;
+  label: string;
+  score: number;
+  total: number;
+  accuracy: number;
+  topic: string;
+  flaggedCount: number;
+  paceStatus: SessionSummary["paceStatus"];
+  totalSeconds: number;
+  recommendedNextStep: string;
+  missedTopics: string[];
+};
+
+type ProgressSnapshot = {
+  diagnosticDone: boolean;
+  score: number;
+  attempts: number;
+  streak: number;
+  missedTopics: Record<string, number>;
+  selectedTopic: string;
+  sessionCount: number;
+  lastSessionSummary: SessionSummary | null;
+  sessionHistory: SessionHistoryEntry[];
+  mistakeBook: MistakeBookItem[];
+  missionDay: string;
+  completedMissionIds: string[];
+};
+
+type DailyMission = {
+  id: string;
+  title: string;
+  detail: string;
+  cta: string;
+  tone: "rose" | "emerald" | "sky";
+  tag: string;
+  onLaunch: () => void;
+};
+
 type StatementGuess = Record<keyof StatementEffect["answer"], StatementDirection | "">;
 
 type MistakeBookItem = {
@@ -319,6 +360,7 @@ type QuestionViewProps = {
 };
 
 const MISTAKE_BOOK_STORAGE_KEY = "accounting_mistake_book_v1";
+const PROGRESS_STORAGE_KEY = "accounting_progress_snapshot_v1";
 
 const confidenceOptions: ConfidenceLevel[] = ["Guessing", "Pretty sure", "Certain"];
 
@@ -590,6 +632,24 @@ function buildSessionSummary({
   };
 }
 
+function buildHistoryEntry(summary: SessionSummary): SessionHistoryEntry {
+  return {
+    id: `${summary.mode}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    finishedAt: new Date().toISOString(),
+    mode: summary.mode,
+    label: summary.label,
+    score: summary.score,
+    total: summary.total,
+    accuracy: summary.accuracy,
+    topic: summary.topic,
+    flaggedCount: summary.flaggedCount,
+    paceStatus: summary.paceStatus,
+    totalSeconds: summary.totalSeconds,
+    recommendedNextStep: summary.recommendedNextStep,
+    missedTopics: summary.missedTopics
+  };
+}
+
 function takeEndingInventory(
   layers: Array<{ label: string; units: number; unitCost: number }>,
   endingUnits: number,
@@ -733,6 +793,26 @@ function readStoredMistakeBook(): MistakeBookItem[] {
   } catch {
     return [];
   }
+}
+
+function readStoredProgress(): ProgressSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PROGRESS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ProgressSnapshot;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function todayLocalKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeAccount(account: string) {
@@ -976,6 +1056,194 @@ function InventoryMethodCard({
   );
 }
 
+function PulseRing({
+  value,
+  label,
+  sublabel,
+  tone = "emerald",
+  size = 112
+}: {
+  value: number;
+  label: string;
+  sublabel: string;
+  tone?: "emerald" | "rose" | "sky";
+  size?: number;
+}) {
+  const safeValue = Math.max(0, Math.min(100, Math.round(value)));
+  const tones = {
+    emerald: { fill: "#0f766e", glow: "rgba(15, 118, 110, 0.2)" },
+    rose: { fill: "#e11d48", glow: "rgba(225, 29, 72, 0.2)" },
+    sky: { fill: "#0284c7", glow: "rgba(2, 132, 199, 0.2)" }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className="relative rounded-full p-2 shadow-sm motion-ring"
+        style={{
+          width: size,
+          height: size,
+          background: `conic-gradient(${tones[tone].fill} ${safeValue}%, rgba(15,23,42,0.12) ${safeValue}% 100%)`,
+          boxShadow: `0 10px 30px ${tones[tone].glow}`
+        }}
+      >
+        <div className="absolute inset-[10px] flex flex-col items-center justify-center rounded-full bg-white/90 text-center">
+          <div className="text-2xl font-black text-slate-900">{safeValue}%</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</div>
+        </div>
+      </div>
+      <div className="text-sm leading-6 text-slate-600">{sublabel}</div>
+    </div>
+  );
+}
+
+function DailyMissionCard({
+  mission,
+  done,
+  onToggleDone
+}: {
+  mission: DailyMission;
+  done: boolean;
+  onToggleDone: () => void;
+}) {
+  const toneClasses = {
+    rose: "border-rose-100 bg-rose-50/80",
+    emerald: "border-emerald-100 bg-emerald-50/80",
+    sky: "border-sky-100 bg-sky-50/80"
+  };
+
+  return (
+    <div className={`rounded-[1.7rem] border p-5 shadow-sm ${toneClasses[mission.tone]} motion-card`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Badge variant="outline" className="rounded-full bg-white/80">{mission.tag}</Badge>
+          <div className="mt-3 text-lg font-semibold text-slate-900">{mission.title}</div>
+          <div className="mt-2 text-sm leading-6 text-slate-600">{mission.detail}</div>
+        </div>
+        <button
+          type="button"
+          className={`h-8 min-w-8 rounded-full border px-3 text-xs font-semibold transition ${done ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white/80 text-slate-600"}`}
+          onClick={onToggleDone}
+        >
+          {done ? "Done" : "Mark"}
+        </button>
+      </div>
+      <div className="mt-4">
+        <Button onClick={mission.onLaunch} variant={done ? "outline" : "default"}>
+          {mission.cta}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function HistorySparkline({ entries }: { entries: SessionHistoryEntry[] }) {
+  if (!entries.length) {
+    return <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">No session history yet. Finish a few runs and the trend board will wake up.</div>;
+  }
+
+  return (
+    <div className="grid gap-3 md:grid-cols-7">
+      {entries.map((entry, index) => (
+        <div key={entry.id} className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm motion-card" style={{ animationDelay: `${index * 80}ms` }}>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{modeLabel(entry.mode)}</div>
+          <div className="mt-4 flex h-28 items-end">
+            <div className="relative h-full w-full overflow-hidden rounded-t-3xl bg-slate-100">
+              <div
+                className={`w-full rounded-t-3xl transition-all ${entry.accuracy >= 80 ? "bg-emerald-400" : entry.accuracy >= 65 ? "bg-sky-400" : "bg-rose-400"}`}
+                style={{ height: `${Math.max(16, entry.accuracy)}%` }}
+              />
+            </div>
+          </div>
+          <div className="mt-3 text-2xl font-black text-slate-900">{entry.accuracy}%</div>
+          <div className="mt-1 text-xs leading-5 text-slate-500">{new Date(entry.finishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SessionCockpit({
+  progress,
+  time,
+  flaggedCount,
+  score,
+  total
+}: {
+  progress: number;
+  time: string;
+  flaggedCount: number;
+  score: number;
+  total: number;
+}) {
+  return (
+    <div className="mb-4 grid gap-4 rounded-[1.75rem] border border-white/70 bg-gradient-to-r from-sky-50 via-white to-emerald-50 p-4 shadow-sm md:grid-cols-[auto,1fr] md:items-center">
+      <PulseRing
+        value={progress}
+        label="Progress"
+        sublabel={`${score}/${total || 0} correct banked so far`}
+        tone={progress >= 70 ? "emerald" : progress >= 35 ? "sky" : "rose"}
+        size={96}
+      />
+      <div className="grid gap-3 md:grid-cols-3">
+        <LabMetric label="Elapsed" value={time} note="Live timer for the current run." tone="sky" />
+        <LabMetric label="Flagged" value={String(flaggedCount)} note="Questions queued for a second pass." tone="amber" />
+        <LabMetric label="Current bank" value={`${score}/${total || 0}`} note="Questions already answered correctly in this run." tone="emerald" />
+      </div>
+    </div>
+  );
+}
+
+function MasteryConstellation({
+  topics,
+  accuracy,
+  streak
+}: {
+  topics: Array<{ topic: string; misses: number; recentTopicAccuracy: number | null; angle: number; mascot: string }>;
+  accuracy: number;
+  streak: number;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(125,211,252,0.16),transparent_34%)]" />
+      <div className="absolute left-6 top-5 text-xs font-semibold uppercase tracking-[0.24em] text-white/60">Mastery constellation</div>
+      <div className="relative mx-auto mt-6 h-[22rem] max-w-[28rem]">
+        <div className="absolute left-1/2 top-1/2 z-10 flex h-32 w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 text-center shadow-2xl backdrop-blur mastery-core">
+          <div className="text-xs uppercase tracking-[0.24em] text-white/60">Hanna HQ</div>
+          <div className="mt-2 text-3xl font-black">{accuracy}%</div>
+          <div className="mt-1 text-xs text-white/70">Current accuracy</div>
+          <div className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Streak {streak}</div>
+        </div>
+        {topics.map((item, index) => {
+          const orbitRadius = 132 + (index % 2) * 28;
+          const x = Math.cos(item.angle) * orbitRadius;
+          const y = Math.sin(item.angle) * orbitRadius;
+          const statusTone = item.misses >= 4 ? "border-rose-300 bg-rose-300/20 text-rose-100" : item.misses >= 2 ? "border-amber-300 bg-amber-300/20 text-amber-100" : "border-emerald-300 bg-emerald-300/20 text-emerald-100";
+          return (
+            <div
+              key={item.topic}
+              className="absolute left-1/2 top-1/2"
+              style={{
+                transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+                animationDelay: `${index * 180}ms`
+              }}
+            >
+              <div className={`mastery-node min-w-[9rem] rounded-[1.4rem] border px-4 py-3 text-center shadow-lg backdrop-blur ${statusTone}`} style={{ animationDelay: `${index * 180}ms` }}>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-80">{item.mascot}</div>
+                <div className="mt-1 text-sm font-semibold leading-5">{item.topic}</div>
+                <div className="mt-2 text-xs opacity-80">
+                  {item.recentTopicAccuracy !== null ? `${item.recentTopicAccuracy}% recent` : "No topic history yet"}
+                </div>
+                <div className="mt-1 text-xs opacity-80">{item.misses} miss{item.misses === 1 ? "" : "es"} logged</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function USCAccountingPracticeTool() {
   const [mode, setMode] = useState<ViewMode>("home");
   const [selectedTopic, setSelectedTopic] = useState("All");
@@ -1004,6 +1272,11 @@ export default function USCAccountingPracticeTool() {
   const [loadedSessionTopic, setLoadedSessionTopic] = useState("All");
   const [lastSessionSummary, setLastSessionSummary] = useState<SessionSummary | null>(null);
   const [mistakeBook, setMistakeBook] = useState<MistakeBookItem[]>(readStoredMistakeBook);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>([]);
+  const [missionDay, setMissionDay] = useState(todayLocalKey);
+  const [completedMissionIds, setCompletedMissionIds] = useState<string[]>([]);
+  const [vaultMessage, setVaultMessage] = useState("");
+  const [storageReady, setStorageReady] = useState(false);
   const [rescueIndex, setRescueIndex] = useState(0);
   const [rescueFill, setRescueFill] = useState("");
   const [rescueReveal, setRescueReveal] = useState(false);
@@ -1033,6 +1306,7 @@ export default function USCAccountingPracticeTool() {
   const [journalDraft, setJournalDraft] = useState("");
   const [journalFeedback, setJournalFeedback] = useState<JournalFeedback | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const topics = ["All", ...topicRescues.map((t) => t.topic)];
   const diagnosticQuestions = useMemo(() => questionBank.filter((q) => q.family === "diagnostic"), []);
@@ -1065,6 +1339,22 @@ export default function USCAccountingPracticeTool() {
   const slowestReviewRecords = lastSessionSummary
     ? [...lastSessionSummary.questionRecords].sort((a, b) => b.secondsSpent - a.secondsSpent).slice(0, 3)
     : [];
+  const recentHistory = sessionHistory.slice(0, 7).reverse();
+  const bestAccuracy = sessionHistory.length ? Math.max(...sessionHistory.map((item) => item.accuracy)) : null;
+  const masteryTopics = topicRescues.map((item, index) => {
+    const misses = missedTopics[item.topic] || 0;
+    const recentForTopic = sessionHistory.filter((entry) => entry.topic === item.topic || entry.missedTopics.includes(item.topic));
+    const recentTopicAccuracy = recentForTopic.length
+      ? Math.round(recentForTopic.reduce((sum, entry) => sum + entry.accuracy, 0) / recentForTopic.length)
+      : null;
+    return {
+      topic: item.topic,
+      misses,
+      recentTopicAccuracy,
+      angle: (Math.PI * 2 * index) / Math.max(topicRescues.length, 1),
+      mascot: item.mascot
+    };
+  });
   const effectFields: Array<{ key: keyof StatementEffect["answer"]; label: string }> = [
     { key: "assets", label: "Assets" },
     { key: "liabilities", label: "Liabilities" },
@@ -1073,6 +1363,7 @@ export default function USCAccountingPracticeTool() {
     { key: "cash", label: "Cash" }
   ];
   const optionSet: StatementDirection[] = ["Up", "Down", "No change"];
+  const todayMissionKey = todayLocalKey();
 
   const timelinePV = (() => {
     const fv = Number(timelineFV);
@@ -1091,9 +1382,10 @@ export default function USCAccountingPracticeTool() {
   }
 
   useEffect(() => {
+    if (!storageReady) return;
     if (typeof window === "undefined") return;
     window.localStorage.setItem(MISTAKE_BOOK_STORAGE_KEY, JSON.stringify(mistakeBook));
-  }, [mistakeBook]);
+  }, [mistakeBook, storageReady]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !sessionStartedAt || !sessionQuestions.length || !isSessionMode(mode)) {
@@ -1106,6 +1398,72 @@ export default function USCAccountingPracticeTool() {
     const timer = window.setInterval(updateElapsed, 1000);
     return () => window.clearInterval(timer);
   }, [mode, sessionQuestions.length, sessionStartedAt]);
+
+  useEffect(() => {
+    const stored = readStoredProgress();
+    if (!stored) {
+      setStorageReady(true);
+      return;
+    }
+
+    setDiagnosticDone(Boolean(stored.diagnosticDone));
+    setScore(stored.score || 0);
+    setAttempts(stored.attempts || 0);
+    setStreak(stored.streak || 0);
+    setMissedTopics(stored.missedTopics || {});
+    setSelectedTopic(stored.selectedTopic || "All");
+    setSessionCount(stored.sessionCount || 0);
+    setLastSessionSummary(stored.lastSessionSummary || null);
+    setSessionHistory(Array.isArray(stored.sessionHistory) ? stored.sessionHistory : []);
+    if (Array.isArray(stored.mistakeBook)) {
+      setMistakeBook(stored.mistakeBook);
+    }
+    const resolvedMissionDay = stored.missionDay || todayLocalKey();
+    setMissionDay(resolvedMissionDay);
+    setCompletedMissionIds(resolvedMissionDay === todayLocalKey() ? stored.completedMissionIds || [] : []);
+    setStorageReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (missionDay !== todayMissionKey) {
+      setMissionDay(todayMissionKey);
+      setCompletedMissionIds([]);
+    }
+  }, [missionDay, todayMissionKey]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    if (typeof window === "undefined") return;
+    const snapshot: ProgressSnapshot = {
+      diagnosticDone,
+      score,
+      attempts,
+      streak,
+      missedTopics,
+      selectedTopic,
+      sessionCount,
+      lastSessionSummary,
+      sessionHistory,
+      mistakeBook,
+      missionDay,
+      completedMissionIds
+    };
+    window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(snapshot));
+  }, [
+    attempts,
+    completedMissionIds,
+    diagnosticDone,
+    lastSessionSummary,
+    missionDay,
+    missedTopics,
+    mistakeBook,
+    score,
+    selectedTopic,
+    sessionCount,
+    sessionHistory,
+    storageReady,
+    streak
+  ]);
 
   function updateMistakeBook(question: BankQuestion) {
     setMistakeBook((prev) => {
@@ -1177,14 +1535,16 @@ export default function USCAccountingPracticeTool() {
   function nextQuestion() {
     if (questionIndex + 1 >= sessionQuestions.length) {
       if (isSessionMode(mode)) {
-        setLastSessionSummary(buildSessionSummary({
+        const summary = buildSessionSummary({
           mode,
           label: activeSessionLabel ?? modeLabel(mode),
           score: sessionScore,
           total: sessionQuestions.length,
           topic: loadedSessionTopic,
           records: sessionQuestionLog
-        }));
+        });
+        setLastSessionSummary(summary);
+        setSessionHistory((prev) => [buildHistoryEntry(summary), ...prev].slice(0, 14));
       }
       if (mode === "diagnostic") setDiagnosticDone(true);
       setMode("review");
@@ -1247,6 +1607,10 @@ export default function USCAccountingPracticeTool() {
   }
 
   function resetAll() {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(MISTAKE_BOOK_STORAGE_KEY);
+      window.localStorage.removeItem(PROGRESS_STORAGE_KEY);
+    }
     setMode("home");
     setSessionQuestions([]);
     setQuestionIndex(0);
@@ -1272,6 +1636,11 @@ export default function USCAccountingPracticeTool() {
     setLoadedSessionMode(null);
     setLoadedSessionTopic("All");
     setLastSessionSummary(null);
+    setMistakeBook([]);
+    setSessionHistory([]);
+    setMissionDay(todayLocalKey());
+    setCompletedMissionIds([]);
+    setVaultMessage("");
     setSessionCount(0);
     setRescueIndex(0);
     setRescueFill("");
@@ -1343,18 +1712,153 @@ export default function USCAccountingPracticeTool() {
     }
   }
 
+  function toggleMissionDone(missionId: string) {
+    setCompletedMissionIds((prev) => prev.includes(missionId) ? prev.filter((id) => id !== missionId) : [...prev, missionId]);
+  }
+
+  function exportProgress() {
+    if (typeof window === "undefined") return;
+    const payload: ProgressSnapshot = {
+      diagnosticDone,
+      score,
+      attempts,
+      streak,
+      missedTopics,
+      selectedTopic,
+      sessionCount,
+      lastSessionSummary,
+      sessionHistory,
+      mistakeBook,
+      missionDay,
+      completedMissionIds
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `hanna-accounting-progress-${todayMissionKey}.json`;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
+    setVaultMessage("Progress exported. Save that JSON file if you want a clean backup or cross-device transfer.");
+  }
+
+  async function importProgress(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const parsed = JSON.parse(await file.text()) as Partial<ProgressSnapshot>;
+      setDiagnosticDone(Boolean(parsed.diagnosticDone));
+      setScore(parsed.score || 0);
+      setAttempts(parsed.attempts || 0);
+      setStreak(parsed.streak || 0);
+      setMissedTopics(parsed.missedTopics || {});
+      setSelectedTopic(parsed.selectedTopic || "All");
+      setSessionCount(parsed.sessionCount || 0);
+      setLastSessionSummary(parsed.lastSessionSummary || null);
+      setSessionHistory(Array.isArray(parsed.sessionHistory) ? parsed.sessionHistory : []);
+      setMistakeBook(Array.isArray(parsed.mistakeBook) ? parsed.mistakeBook : []);
+      const importedDay = typeof parsed.missionDay === "string" ? parsed.missionDay : todayMissionKey;
+      setMissionDay(importedDay === todayMissionKey ? importedDay : todayMissionKey);
+      setCompletedMissionIds(importedDay === todayMissionKey && Array.isArray(parsed.completedMissionIds) ? parsed.completedMissionIds : []);
+      setStorageReady(true);
+      setVaultMessage("Progress imported. The dashboard, mistake book, and saved history are live again.");
+      setMode("home");
+    } catch {
+      setVaultMessage("Import failed. Use a JSON file that came from this trainer's export button.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   function checkJournalEntry() {
     setJournalFeedback(evaluateJournalEntry(journalDraft, activeJournalScenario));
   }
 
   const isRecoveryRecommended = attempts > 0 && (rankedWeakTopics.length >= 3 || accuracy < 55);
   const sessionProgressValue = sessionQuestions.length ? ((questionIndex + (revealed ? 1 : 0)) / sessionQuestions.length) * 100 : 0;
+  const dailyMissions: DailyMission[] = [
+    !diagnosticDone
+      ? {
+          id: `${todayMissionKey}-diagnostic`,
+          title: "Run the checkpoint",
+          detail: "Start with the 6-question diagnostic so the rest of the plan is based on evidence.",
+          cta: "Start diagnostic",
+          tone: "rose",
+          tag: "Calibration",
+          onLaunch: () => launch("diagnostic")
+        }
+      : {
+          id: `${todayMissionKey}-mock`,
+          title: "Stabilize the mix",
+          detail: "Use an exam-weighted session so the topic blend feels familiar again.",
+          cta: lastSessionSummary?.mode === "mockConfidence" ? "Run exam mock" : "Run confidence mock",
+          tone: "emerald",
+          tag: "Mixed set",
+          onLaunch: () => launch(lastSessionSummary?.mode === "mockConfidence" ? "mockExam" : "mockConfidence")
+        },
+    rankedWeakTopics[0]
+      ? {
+          id: `${todayMissionKey}-weak-${rankedWeakTopics[0][0]}`,
+          title: `Repair ${rankedWeakTopics[0][0]}`,
+          detail: `This is the current top leak with ${rankedWeakTopics[0][1]} miss${rankedWeakTopics[0][1] === 1 ? "" : "es"}.`,
+          cta: "Launch targeted drill",
+          tone: "sky",
+          tag: "Weakest topic",
+          onLaunch: () => launch("drill", { topicOverride: rankedWeakTopics[0][0] })
+        }
+      : {
+          id: `${todayMissionKey}-learn`,
+          title: "Prime the concepts",
+          detail: "Use the rescue cards once before you start pushing speed.",
+          cta: "Open rescue cards",
+          tone: "sky",
+          tag: "Prep",
+          onLaunch: () => setMode("learn")
+        },
+    flaggedReviewQuestions.length
+      ? {
+          id: `${todayMissionKey}-flags`,
+          title: "Clear the flagged set",
+          detail: "Questions Hanna explicitly marked for another pass are the best cleanup reps right now.",
+          cta: "Retry flagged pack",
+          tone: "rose",
+          tag: "Cleanup",
+          onLaunch: () => launchReviewPack(flaggedReviewQuestions, "Flagged review")
+        }
+      : mistakeBook.length
+        ? {
+            id: `${todayMissionKey}-mistakes`,
+            title: "Empty the mistake book",
+            detail: `There are ${mistakeBook.length} saved misses waiting for a clean retry.`,
+            cta: "Retry mistakes",
+            tone: "rose",
+            tag: "Cleanup",
+            onLaunch: () => launch("mistakes")
+          }
+        : {
+            id: `${todayMissionKey}-entries`,
+            title: "Write one clean entry set",
+            detail: "Use the workbench to convert concepts back into debits, credits, and balance checks.",
+            cta: "Open entries lab",
+            tone: "emerald",
+            tag: "Workbench",
+            onLaunch: () => setMode("entries")
+          }
+  ];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-rose-100 via-orange-50 to-sky-100 p-4 md:p-8">
-      <div className="pointer-events-none absolute -left-16 top-20 h-56 w-56 rounded-full bg-rose-200/60 blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-amber-100/70 blur-3xl" />
+      <div className="pointer-events-none absolute -left-16 top-20 h-56 w-56 rounded-full bg-rose-200/60 blur-3xl animate-drift-slow" />
+      <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl animate-drift-reverse" />
+      <div className="pointer-events-none absolute bottom-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-amber-100/70 blur-3xl animate-drift-slower" />
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute left-[8%] top-[14%] h-3 w-3 rounded-full bg-white shadow-[0_0_24px_rgba(255,255,255,0.9)] animate-twinkle" />
+        <div className="absolute left-[22%] top-[24%] h-2 w-2 rounded-full bg-amber-200 shadow-[0_0_24px_rgba(253,230,138,0.9)] animate-twinkle-delayed" />
+        <div className="absolute right-[18%] top-[18%] h-3 w-3 rounded-full bg-sky-100 shadow-[0_0_24px_rgba(224,242,254,0.9)] animate-twinkle" />
+        <div className="absolute right-[12%] top-[34%] h-2.5 w-2.5 rounded-full bg-rose-100 shadow-[0_0_24px_rgba(255,228,230,0.9)] animate-twinkle-delayed" />
+        <div className="absolute left-[14%] bottom-[28%] h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_24px_rgba(255,255,255,0.9)] animate-twinkle" />
+      </div>
       <div className="relative mx-auto max-w-7xl space-y-6">
         <div>
           <Card className="rounded-[2rem] border border-white/70 bg-white/85 shadow-xl backdrop-blur">
@@ -1378,7 +1882,7 @@ export default function USCAccountingPracticeTool() {
                   </div>
                 </div>
                 <div className="grid gap-3">
-                  <div className="rounded-[2rem] bg-gradient-to-br from-rose-50 via-white to-sky-50 p-4 shadow-sm">
+                  <div className="rounded-[2rem] bg-gradient-to-br from-rose-50 via-white to-sky-50 p-4 shadow-sm motion-card">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-xs uppercase tracking-[0.22em] text-rose-500">Mascot board</div>
@@ -1388,7 +1892,9 @@ export default function USCAccountingPracticeTool() {
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {heroStickerBoard.map((item, index) => (
-                        <StickerTile key={item.src} item={item} compact priority={index < 2} />
+                        <div key={item.src} className="motion-card" style={{ animationDelay: `${index * 120}ms` }}>
+                          <StickerTile item={item} compact priority={index < 2} />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1547,8 +2053,78 @@ export default function USCAccountingPracticeTool() {
                         </div>
                       </div>
                     ) : null}
+                    <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+                      <div className="space-y-4">
+                        <div className="rounded-[1.85rem] border border-white/70 bg-white/90 p-5 shadow-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-600">Today&apos;s mission board</div>
+                              <div className="mt-1 text-sm leading-6 text-slate-600">Three locally-generated tasks based on the current weak spots and saved review work.</div>
+                            </div>
+                            <Badge variant="outline" className="rounded-full">
+                              <CalendarDays className="h-3.5 w-3.5" /> {todayMissionKey}
+                            </Badge>
+                          </div>
+                          <div className="mt-4 grid gap-3">
+                            {dailyMissions.map((mission) => (
+                              <DailyMissionCard
+                                key={mission.id}
+                                mission={mission}
+                                done={completedMissionIds.includes(mission.id)}
+                                onToggleDone={() => toggleMissionDone(mission.id)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-[1.85rem] border border-white/70 bg-white/90 p-5 shadow-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-700">Progress vault</div>
+                              <div className="mt-1 text-sm leading-6 text-slate-600">Export a JSON backup or import one later. That keeps the app fully free-tier and database-free.</div>
+                            </div>
+                            <Badge variant="outline" className="rounded-full">
+                              <Download className="h-3.5 w-3.5" /> Local only
+                            </Badge>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Button onClick={exportProgress}>
+                              <Download className="h-4 w-4" /> Export progress
+                            </Button>
+                            <Button variant="outline" onClick={() => importInputRef.current?.click()}>
+                              <Upload className="h-4 w-4" /> Import progress
+                            </Button>
+                            <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={importProgress} />
+                          </div>
+                          <div className="mt-3 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                            {vaultMessage || "Backups include the mistake book, recent results history, daily mission completion, and saved weak-topic profile."}
+                          </div>
+                        </div>
+                      </div>
+
+                      <MasteryConstellation topics={masteryTopics} accuracy={accuracy} streak={streak} />
+                    </div>
                     <div className="rounded-3xl bg-rose-50 p-5 leading-7">
                       This version is now anchored to the practice midterm and Classes 9-14. The sessions are built from a weighted Midterm 2 bank instead of the older generic accounting topic mix.
+                    </div>
+                    <div className="rounded-[1.85rem] border border-white/70 bg-white/90 p-5 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">Recent trajectory</div>
+                          <div className="mt-1 text-sm leading-6 text-slate-600">A lightweight history board saved in the browser. Useful for seeing whether the score trend is actually stabilizing.</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">
+                            <TrendingUp className="h-3.5 w-3.5" /> Best accuracy: {bestAccuracy !== null ? `${bestAccuracy}%` : "No runs yet"}
+                          </Badge>
+                          <Badge variant="outline">
+                            <Gauge className="h-3.5 w-3.5" /> Saved runs: {sessionHistory.length}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <HistorySparkline entries={recentHistory} />
+                      </div>
                     </div>
                     <div className="grid gap-4 lg:grid-cols-2">
                       {studyBoards.map((item, index) => (
@@ -1627,10 +2203,20 @@ export default function USCAccountingPracticeTool() {
                       <>
                         <div className="grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
                           <div className="rounded-[1.85rem] border border-white/70 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 shadow-sm">
-                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">{lastSessionSummary.label}</div>
-                            <div className="mt-2 text-4xl font-black text-slate-900">{lastSessionSummary.score} / {lastSessionSummary.total}</div>
-                            <div className="mt-2 text-sm leading-6 text-slate-600">
-                              Accuracy {lastSessionSummary.accuracy}% · {formatDuration(lastSessionSummary.totalSeconds)} total · {Math.round(lastSessionSummary.averageSeconds)} sec/question on average.
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                              <div>
+                                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">{lastSessionSummary.label}</div>
+                                <div className="mt-2 text-4xl font-black text-slate-900">{lastSessionSummary.score} / {lastSessionSummary.total}</div>
+                                <div className="mt-2 text-sm leading-6 text-slate-600">
+                                  Accuracy {lastSessionSummary.accuracy}% · {formatDuration(lastSessionSummary.totalSeconds)} total · {Math.round(lastSessionSummary.averageSeconds)} sec/question on average.
+                                </div>
+                              </div>
+                              <PulseRing
+                                value={lastSessionSummary.accuracy}
+                                label="Score"
+                                sublabel={`${lastSessionSummary.paceStatus} pace, ${lastSessionSummary.flaggedCount} flagged`}
+                                tone={lastSessionSummary.accuracy >= 80 ? "emerald" : lastSessionSummary.accuracy >= 65 ? "sky" : "rose"}
+                              />
                             </div>
                             <div className="mt-4 grid gap-3 md:grid-cols-4">
                               <LabMetric label="Pace" value={lastSessionSummary.paceStatus} note={`Target: ${lastSessionSummary.paceTargetSeconds} sec/question`} tone="sky" />
@@ -1799,6 +2385,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
                       <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
+                    <SessionCockpit progress={sessionProgressValue} time={formatDuration(liveSessionSeconds)} flaggedCount={flaggedQuestionIds.length} score={sessionScore} total={sessionQuestions.length} />
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
@@ -1830,6 +2417,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
                       <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
+                    <SessionCockpit progress={sessionProgressValue} time={formatDuration(liveSessionSeconds)} flaggedCount={flaggedQuestionIds.length} score={sessionScore} total={sessionQuestions.length} />
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
@@ -1849,6 +2437,7 @@ export default function USCAccountingPracticeTool() {
                           <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
                           <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                         </div>
+                        <SessionCockpit progress={sessionProgressValue} time={formatDuration(liveSessionSeconds)} flaggedCount={flaggedQuestionIds.length} score={sessionScore} total={sessionQuestions.length} />
                         <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                       </>
                     ) : (
@@ -2317,6 +2906,7 @@ export default function USCAccountingPracticeTool() {
                           <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
                           <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                         </div>
+                        <SessionCockpit progress={sessionProgressValue} time={formatDuration(liveSessionSeconds)} flaggedCount={flaggedQuestionIds.length} score={sessionScore} total={sessionQuestions.length} />
                         <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                       </>
                     ) : prioritizedMistakes.length ? (
@@ -2354,6 +2944,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
                       <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
+                    <SessionCockpit progress={sessionProgressValue} time={formatDuration(liveSessionSeconds)} flaggedCount={flaggedQuestionIds.length} score={sessionScore} total={sessionQuestions.length} />
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
@@ -2371,6 +2962,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Time: {formatDuration(liveSessionSeconds)}</Badge>
                       <Badge variant="outline">Flagged: {flaggedQuestionIds.length}</Badge>
                     </div>
+                    <SessionCockpit progress={sessionProgressValue} time={formatDuration(liveSessionSeconds)} flaggedCount={flaggedQuestionIds.length} score={sessionScore} total={sessionQuestions.length} />
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} flagged={currentQuestionFlagged} onToggleFlag={toggleCurrentQuestionFlag} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
