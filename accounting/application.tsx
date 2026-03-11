@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Brain, Calculator, Target, Trophy, RefreshCw, Clock3, Heart, CheckCircle2, XCircle, BookOpenText, LineChart, Sparkles, ShieldAlert, Rabbit, RotateCcw } from "lucide-react";
@@ -44,6 +45,149 @@ const moods = [
   "Survival first, elegance later."
 ];
 
+type StickerItem = {
+  src: string;
+  alt: string;
+  title: string;
+  caption: string;
+  tag: string;
+  tint: string;
+  aspectClass: string;
+};
+
+const heroStickerBoard: StickerItem[] = [
+  {
+    src: "/stickers/cinnamoroll-cookies.webp",
+    alt: "Cinnamoroll with a cookie jar",
+    title: "Receivables energy",
+    caption: "Keep track of what comes in, what gets used, and what still needs to be collected.",
+    tag: "Warm-up",
+    tint: "from-rose-50 via-white to-sky-50",
+    aspectClass: "aspect-[4/3]"
+  },
+  {
+    src: "/stickers/badtz-delivery.webp",
+    alt: "Badtz-Maru driving a delivery truck with calculators",
+    title: "Inventory in motion",
+    caption: "The goods can move fast, but your cost layers still need to stay organized.",
+    tag: "Flow",
+    tint: "from-amber-50 via-white to-slate-50",
+    aspectClass: "aspect-[4/3]"
+  },
+  {
+    src: "/stickers/hello-kitty-boxes.webp",
+    alt: "Hello Kitty stacking boxes",
+    title: "Sort the layers",
+    caption: "Tag the units, label the method, and stop the cost flow question from getting sloppy.",
+    tag: "Method",
+    tint: "from-rose-50 via-white to-orange-50",
+    aspectClass: "aspect-[4/3]"
+  },
+  {
+    src: "/stickers/my-melody-baking.webp",
+    alt: "My Melody mixing batter and baking cookies",
+    title: "Ingredients to output",
+    caption: "When the question feels abstract, go back to the ingredients, process, and finished result.",
+    tag: "Process",
+    tint: "from-pink-50 via-white to-yellow-50",
+    aspectClass: "aspect-[4/3]"
+  }
+];
+
+const studySupportCards: StickerItem[] = [
+  {
+    src: "/stickers/keroppi-ingredients.webp",
+    alt: "Keroppi with baking ingredients",
+    title: "Accrual before cash",
+    caption: "Liabilities start when the obligation exists, not only when the payment happens.",
+    tag: "Current liabilities",
+    tint: "from-lime-50 via-white to-amber-50",
+    aspectClass: "aspect-[4/3]"
+  },
+  {
+    src: "/stickers/chococat-boxes.webp",
+    alt: "Chococat with stacked boxes",
+    title: "Count what stays",
+    caption: "A calm box count fixes a surprising number of inventory mistakes before they snowball.",
+    tag: "Inventory",
+    tint: "from-slate-100 via-white to-rose-50",
+    aspectClass: "aspect-[4/3]"
+  }
+];
+
+const conceptSceneCards: StickerItem[] = [
+  {
+    src: "/stickers/long-term-asset-acquisition.webp",
+    alt: "Long-term asset acquisition diagram",
+    title: "Acquire and capitalize",
+    caption: "Purchase price, freight, and installation stay with the asset when they prepare it for use.",
+    tag: "PP&E setup",
+    tint: "from-sky-50 via-white to-rose-50",
+    aspectClass: "aspect-[16/10]"
+  },
+  {
+    src: "/stickers/asset-usage-depreciation.webp",
+    alt: "Asset usage and depreciation diagram",
+    title: "Use, depreciate, compare",
+    caption: "Use the asset, update book value, then compare proceeds to book value when it is sold.",
+    tag: "Depreciation",
+    tint: "from-rose-50 via-white to-amber-50",
+    aspectClass: "aspect-[16/10]"
+  }
+];
+
+const deskFriends: StickerItem[] = [
+  {
+    src: "/stickers/my-melody-wave.webp",
+    alt: "My Melody waving",
+    title: "Read twice",
+    caption: "Slow down and answer the exact requirement, not the one you expected.",
+    tag: "Pacing",
+    tint: "from-pink-50 via-white to-rose-50",
+    aspectClass: "aspect-square"
+  },
+  {
+    src: "/stickers/hello-kitty-wave.webp",
+    alt: "Hello Kitty waving",
+    title: "Write clean",
+    caption: "Keep the arithmetic neat enough that you can trust your own work under time pressure.",
+    tag: "Execution",
+    tint: "from-sky-50 via-white to-rose-50",
+    aspectClass: "aspect-square"
+  }
+];
+
+const inventoryFlowCard: StickerItem = {
+  src: "/stickers/inventory-flow.webp",
+  alt: "Inventory flow shelf diagram",
+  title: "Shelf versus COGS",
+  caption: "On FIFO/LIFO questions, picture which cost layers stay on the shelf and which ones flow into expense.",
+  tag: "Cost flow visual",
+  tint: "from-amber-50 via-white to-emerald-50",
+  aspectClass: "aspect-[16/9]"
+};
+
+const studyBoards: StickerItem[] = [
+  {
+    src: "/stickers/kawaii-sticker-board.webp",
+    alt: "Board of kawaii accounting stickers",
+    title: "Mascot sticker board",
+    caption: "A softer visual layer for the site: still accounting-focused, just less sterile while you grind through the bank.",
+    tag: "Mood board",
+    tint: "from-rose-50 via-white to-sky-50",
+    aspectClass: "aspect-[16/9]"
+  },
+  {
+    src: "/stickers/kawaii-concept-board.webp",
+    alt: "Board of kawaii accounting concept diagrams",
+    title: "Concept board",
+    caption: "Inventory flow, asset acquisition, depreciation, and sale logic shown as one quick visual board.",
+    tag: "Cheat visual",
+    tint: "from-sky-50 via-white to-amber-50",
+    aspectClass: "aspect-[16/9]"
+  }
+];
+
 type StatementGuess = Record<keyof StatementEffect["answer"], StatementDirection | "">;
 
 type MiniCaseQuestionProps = {
@@ -72,12 +216,34 @@ type QuestionViewProps = {
 
 function StatCard({ label, value, icon: Icon }: { label: string; value: string | number; icon: LucideIcon }) {
   return (
-    <div className="rounded-3xl border bg-white p-4 shadow-sm">
+    <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
       <div className="flex items-center gap-2 text-sm text-slate-500">
         <Icon className="h-4 w-4" />
         {label}
       </div>
       <div className="mt-2 text-2xl font-bold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function StickerTile({ item, compact = false, priority = false }: { item: StickerItem; compact?: boolean; priority?: boolean }) {
+  return (
+    <div className={`rounded-[1.75rem] border border-white/80 bg-white/85 shadow-sm backdrop-blur ${compact ? "p-2.5" : "p-3.5"}`}>
+      <div className={`relative overflow-hidden rounded-[1.35rem] bg-gradient-to-br ${item.tint} ${item.aspectClass}`}>
+        <Image
+          src={item.src}
+          alt={item.alt}
+          fill
+          priority={priority}
+          sizes={compact ? "(max-width: 768px) 50vw, 220px" : "(max-width: 768px) 100vw, 340px"}
+          className="object-contain p-3"
+        />
+      </div>
+      <div className={compact ? "mt-2.5 space-y-1" : "mt-3 space-y-1.5"}>
+        <Badge variant="outline" className="rounded-full bg-white/80 text-slate-700">{item.tag}</Badge>
+        <div className={`font-semibold text-slate-900 ${compact ? "text-sm" : "text-base"}`}>{item.title}</div>
+        <div className={`text-slate-600 ${compact ? "text-xs leading-5" : "text-sm leading-6"}`}>{item.caption}</div>
+      </div>
     </div>
   );
 }
@@ -241,10 +407,13 @@ export default function USCAccountingPracticeTool() {
   const isRecoveryRecommended = attempts > 0 && (rankedWeakTopics.length >= 3 || accuracy < 55);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-emerald-50 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-rose-100 via-orange-50 to-sky-100 p-4 md:p-8">
+      <div className="pointer-events-none absolute -left-16 top-20 h-56 w-56 rounded-full bg-rose-200/60 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-amber-100/70 blur-3xl" />
+      <div className="relative mx-auto max-w-7xl space-y-6">
         <div>
-          <Card className="rounded-[2rem] border-0 shadow-xl">
+          <Card className="rounded-[2rem] border border-white/70 bg-white/85 shadow-xl backdrop-blur">
             <CardContent className="p-6 md:p-8">
               <div className="grid gap-6 md:grid-cols-[1.25fr,0.75fr] md:items-center">
                 <div>
@@ -265,9 +434,22 @@ export default function USCAccountingPracticeTool() {
                   </div>
                 </div>
                 <div className="grid gap-3">
-                  <MascotBubble mascot="Chococat" text="This version is built to look like the practice midterm, not a generic accounting quiz." />
-                  <MascotBubble mascot="Keroppi" text="Run the diagnostic, fix the worst topic, then use the exam-weighted mocks." />
-                  <div className="rounded-3xl bg-slate-100 p-4 text-sm text-slate-700 shadow-sm">
+                  <div className="rounded-[2rem] bg-gradient-to-br from-rose-50 via-white to-sky-50 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.22em] text-rose-500">Mascot board</div>
+                        <div className="mt-1 text-sm leading-6 text-slate-600">A lighter-hearted wrapper, but still anchored to the actual Midterm 2 topics.</div>
+                      </div>
+                      <Badge className="rounded-full bg-white text-slate-700 shadow-sm hover:bg-white">Study crew</Badge>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {heroStickerBoard.map((item, index) => (
+                        <StickerTile key={item.src} item={item} compact priority={index < 2} />
+                      ))}
+                    </div>
+                  </div>
+                  <MascotBubble mascot="Chococat" text="Run the diagnostic, rescue the weakest topic, then use the exam-weighted mocks. Cute does not mean random." />
+                  <div className="rounded-3xl bg-white/75 p-4 text-sm text-slate-700 shadow-sm backdrop-blur">
                     <div className="flex items-center gap-2 font-semibold"><Heart className="h-4 w-4 text-rose-500" /> Study note</div>
                     <div className="mt-2 leading-6">One screen, one task, one clean rep. You are not behind, you are just in triage mode.</div>
                   </div>
@@ -345,6 +527,11 @@ export default function USCAccountingPracticeTool() {
                 <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                   Keroppi break: drop shoulders, unclench jaw, one sip of water, then do one more question.
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {deskFriends.map((item) => (
+                    <StickerTile key={item.src} item={item} compact />
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -371,6 +558,29 @@ export default function USCAccountingPracticeTool() {
                     <div className="rounded-3xl bg-rose-50 p-5 leading-7">
                       This version is now anchored to the practice midterm and Classes 9-14. The sessions are built from a weighted Midterm 2 bank instead of the older generic accounting topic mix.
                     </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {studyBoards.map((item, index) => (
+                        <StickerTile key={item.src} item={item} priority={index === 0} />
+                      ))}
+                    </div>
+                    <div className="rounded-[1.75rem] border border-rose-100 bg-gradient-to-r from-rose-50 via-white to-sky-50 p-5">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold uppercase tracking-wide text-rose-700">Printable extra</div>
+                          <div className="mt-1 text-sm leading-6 text-slate-600">
+                            I added the kawaii accounting foundations PDF as a downloadable handout so the student can keep the lighter visual theme outside the app too.
+                          </div>
+                        </div>
+                        <a
+                          href="/resources/kawaii-accounting-foundations.pdf"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          Open PDF sheet
+                        </a>
+                      </div>
+                    </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="rounded-3xl border p-5">
                         <div className="font-semibold text-slate-900">Question families</div>
@@ -379,6 +589,18 @@ export default function USCAccountingPracticeTool() {
                       <div className="rounded-3xl border p-5">
                         <div className="font-semibold text-slate-900">Best cram sequence</div>
                         <div className="mt-2 text-sm leading-6">Diagnostic, rescue cards, weak spots, confidence mock, then exam mock.</div>
+                      </div>
+                    </div>
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {studySupportCards.map((item) => (
+                          <StickerTile key={item.src} item={item} />
+                        ))}
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {conceptSceneCards.map((item) => (
+                          <StickerTile key={item.src} item={item} />
+                        ))}
                       </div>
                     </div>
                     <MascotBubble mascot="Chococat" text={moodText} />
@@ -625,7 +847,18 @@ export default function USCAccountingPracticeTool() {
 
         <Card className="rounded-[2rem] shadow-lg">
           <CardHeader><CardTitle>Formula sheet and exam tactics</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="rounded-[2rem] border border-white/70 bg-gradient-to-r from-amber-50 via-white to-emerald-50 p-4 shadow-sm">
+              <div className="grid gap-4 lg:grid-cols-[0.82fr,1.18fr] lg:items-center">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-wide text-amber-700">Cost flow picture</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-600">
+                    When FIFO, LIFO, and weighted average start to blur together, use a physical shelf picture: some costs stay on the shelf and some costs move into COGS.
+                  </div>
+                </div>
+                <StickerTile item={inventoryFlowCard} />
+              </div>
+            </div>
             <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
               <div className="grid gap-3 md:grid-cols-2">
                 {formulaSheet.map((item) => (
