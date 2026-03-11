@@ -1,0 +1,1651 @@
+{
+  "topicRescues": [
+    {
+      "topic": "Receivables & Allowance",
+      "mascot": "Chococat",
+      "tagline": "Net receivables is never just the sticker price.",
+      "teach": "Under the allowance method, you estimate credit losses before you know exactly which customer will fail to pay. Net accounts receivable equals gross accounts receivable minus the allowance for doubtful accounts.",
+      "formula": "Net A/R = Accounts receivable - Allowance; Bad debt expense = Desired ending allowance - Unadjusted allowance",
+      "worked": "If gross A/R is 57,000 and the aging schedule says allowance should end at 6,300, then net A/R is 50,700.",
+      "finishOne": "Gross A/R is 48,000 and the allowance is 3,600. Net A/R = ____.",
+      "finishAnswer": "44,400",
+      "trap": "Writing off a specific account under the allowance method does not create a new bad debt expense on that date.",
+      "memory": "Chococat says: expense first, write-off later."
+    },
+    {
+      "topic": "Inventory",
+      "mascot": "Keroppi",
+      "tagline": "COGS and ending inventory tell the whole story.",
+      "teach": "Inventory starts as an asset and becomes expense through COGS when the goods are sold. In rising-price periods, FIFO usually gives higher ending inventory and lower COGS than LIFO.",
+      "formula": "Goods available = Beginning inventory + Purchases; COGS = Goods available - Ending inventory",
+      "worked": "Beginning inventory 1,000 plus purchases 700 gives goods available of 1,700. If ending inventory is 1,020, then COGS is 680.",
+      "finishOne": "Goods available is 12,000 and ending inventory is 3,500. COGS = ____.",
+      "finishAnswer": "8,500",
+      "trap": "Students memorize FIFO and LIFO directionally but forget to connect the method to COGS, ending inventory, and net income.",
+      "memory": "Keroppi says: if prices are rising, FIFO leaves the newer, pricier layers in ending inventory."
+    },
+    {
+      "topic": "PP&E + Intangibles",
+      "mascot": "Chococat",
+      "tagline": "Decide what gets capitalized before you calculate anything.",
+      "teach": "Major improvements that extend useful life or increase future benefit are capitalized; routine maintenance is expensed. Depreciation spreads the depreciable base of PP&E, and finite-life intangibles are amortized while indefinite-life intangibles are tested for impairment.",
+      "formula": "Straight-line depreciation = (Cost - Salvage) / Useful life; Book value = Cost - Accumulated depreciation",
+      "worked": "A building costing 440,000 with 60,000 salvage and a 10-year life has annual depreciation of 38,000.",
+      "finishOne": "Machinery costs 300,000, salvage is 45,000, and life is 8 years. Annual depreciation = ____.",
+      "finishAnswer": "31,875",
+      "trap": "Students often capitalize ordinary repairs or forget that changes in estimate affect future depreciation, not past years.",
+      "memory": "Chococat says: improve it, capitalize it; maintain it, expense it."
+    },
+    {
+      "topic": "Current Liabilities",
+      "mascot": "Keroppi",
+      "tagline": "Short-term obligations still matter even when cash has not moved yet.",
+      "teach": "Current liabilities include obligations expected to be settled within one year or the operating cycle. Unearned revenue, interest payable, wages payable, and short-term notes payable all live here.",
+      "formula": "Interest = Principal x Rate x Time",
+      "worked": "A 5,000 note at 8% outstanding for 9 months creates interest of 300 by year-end.",
+      "finishOne": "A 50,000 note at 6% is outstanding for 3 months. Interest expense accrued = ____.",
+      "finishAnswer": "750",
+      "trap": "Students miss accruals because no cash changed hands yet. The expense or liability can still exist.",
+      "memory": "Keroppi says: if the obligation exists at year-end, record it."
+    },
+    {
+      "topic": "Ratios & Turnover",
+      "mascot": "Chococat",
+      "tagline": "Compute the ratio, then explain what the business looks like.",
+      "teach": "The current ratio and quick ratio measure short-run liquidity. Receivables turnover, days' sales in receivables, and PPE turnover help you judge how efficiently assets are being used and how quickly cash is coming back in.",
+      "formula": "Current ratio = Current assets / Current liabilities; Quick ratio = (Cash + Short-term investments + A/R) / Current liabilities; Days' sales in receivables = 365 / A/R turnover",
+      "worked": "If A/R turnover is 5, then days' sales in receivables is 365 / 5 = 73 days.",
+      "finishOne": "A/R turnover is 5. Days' sales in receivables = ____ days.",
+      "finishAnswer": "73",
+      "trap": "A correct ratio with a wrong interpretation still loses points.",
+      "memory": "Chococat says: ratio first, story second, both matter."
+    },
+    {
+      "topic": "TVM Basics",
+      "mascot": "Keroppi",
+      "tagline": "This is the class-14 light add-on, not the whole exam.",
+      "teach": "Time value of money says a dollar today is worth more than the same dollar later when interest rates are positive. Discount future cash flows back to today or compound today's cash forward.",
+      "formula": "PV = FV / (1 + r)^n; FV = PV x (1 + r)^n",
+      "worked": "The present value of 1,210 due in two years at 10% is 1,000.",
+      "finishOne": "Present value of 5,000 due in one year at 25% = ____.",
+      "finishAnswer": "4,000",
+      "trap": "Most errors are timeline direction errors: students compound when they should discount.",
+      "memory": "Keroppi says: future to now means discount it back."
+    }
+  ],
+  "questionBank": [
+    {
+      "id": 1,
+      "topic": "Receivables & Allowance",
+      "family": "diagnostic",
+      "type": "mcq",
+      "prompt": "Under the allowance method, writing off a specific uncollectible account does what to net accounts receivable?",
+      "options": [
+        "Increases net accounts receivable",
+        "Decreases net accounts receivable",
+        "Leaves net accounts receivable unchanged",
+        "Creates bad debt expense immediately"
+      ],
+      "answer": "Leaves net accounts receivable unchanged",
+      "explanation": "The write-off reduces both gross A/R and the allowance by the same amount, so net A/R stays the same.",
+      "hint": "Think gross A/R down and allowance down together."
+    },
+    {
+      "id": 2,
+      "topic": "Inventory",
+      "family": "diagnostic",
+      "type": "mcq",
+      "prompt": "When inventory purchase prices are rising, which cost flow assumption usually gives the highest ending inventory?",
+      "options": [
+        "FIFO",
+        "LIFO",
+        "Weighted average",
+        "Specific identification always"
+      ],
+      "answer": "FIFO",
+      "explanation": "FIFO leaves the newest, more expensive units in ending inventory when prices are rising.",
+      "hint": "First in, first out leaves the latest costs behind."
+    },
+    {
+      "id": 3,
+      "topic": "PP&E + Intangibles",
+      "family": "diagnostic",
+      "type": "mcq",
+      "prompt": "Which cost should usually be capitalized as part of PP&E?",
+      "options": [
+        "Routine oil change on a truck",
+        "Painting over a few scratches",
+        "Adding a new roof that extends the building's benefit",
+        "Monthly cleaning expense"
+      ],
+      "answer": "Adding a new roof that extends the building's benefit",
+      "explanation": "A major improvement that extends useful life or future benefit is capitalized.",
+      "hint": "Ask which cost creates extra future economic benefit."
+    },
+    {
+      "id": 4,
+      "topic": "Current Liabilities",
+      "family": "diagnostic",
+      "type": "numeric",
+      "prompt": "A company borrows 5,000 on April 1 at 8% annual interest. How much interest should be accrued by December 31?",
+      "answer": 300,
+      "explanation": "Interest = 5,000 x 0.08 x 9/12 = 300.",
+      "hint": "Nine months of interest."
+    },
+    {
+      "id": 5,
+      "topic": "Ratios & Turnover",
+      "family": "diagnostic",
+      "type": "mcq",
+      "prompt": "A firm has a current ratio of 2.4 and a quick ratio of 0.9. What is the best interpretation?",
+      "options": [
+        "The firm has no inventory",
+        "The firm relies heavily on inventory or other less-liquid current assets",
+        "The quick ratio should be higher than the current ratio",
+        "The firm must be highly profitable"
+      ],
+      "answer": "The firm relies heavily on inventory or other less-liquid current assets",
+      "explanation": "The gap between current and quick ratios suggests inventory or other non-quick current assets make up a large share of current assets.",
+      "hint": "Quick ratio excludes inventory."
+    },
+    {
+      "id": 6,
+      "topic": "TVM Basics",
+      "family": "diagnostic",
+      "type": "mcq",
+      "prompt": "At a positive discount rate, the present value of 1,000 received in three years is:",
+      "options": [
+        "Greater than 1,000",
+        "Equal to 1,000",
+        "Less than 1,000",
+        "Impossible to know"
+      ],
+      "answer": "Less than 1,000",
+      "explanation": "Future cash is discounted back to today and is worth less when rates are positive.",
+      "hint": "Money later is discounted."
+    },
+    {
+      "id": 7,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Accounts receivable is 57,000 and the allowance for doubtful accounts is 6,300. Net accounts receivable equals:",
+      "answer": 50700,
+      "explanation": "Net A/R = 57,000 - 6,300 = 50,700.",
+      "hint": "Subtract the allowance from gross receivables."
+    },
+    {
+      "id": 8,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "An aging schedule shows 20,000 at 5% uncollectible, 10,000 at 10%, and 4,000 at 25%. Desired ending allowance equals:",
+      "answer": 3000,
+      "explanation": "1,000 + 1,000 + 1,000 = 3,000 desired ending allowance.",
+      "hint": "Compute each bucket, then sum."
+    },
+    {
+      "id": 9,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Desired ending allowance is 3,000 and the unadjusted allowance already has a 800 credit balance. Bad debt expense should be:",
+      "answer": 2200,
+      "explanation": "Needed adjustment = 3,000 - 800 = 2,200.",
+      "hint": "Desired ending balance minus current credit balance."
+    },
+    {
+      "id": 10,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Under the allowance method, writing off a specific customer's account is recorded by:",
+      "options": [
+        "Debit Bad Debt Expense; Credit Accounts Receivable",
+        "Debit Allowance for Doubtful Accounts; Credit Accounts Receivable",
+        "Debit Cash; Credit Accounts Receivable",
+        "Debit Accounts Receivable; Credit Allowance for Doubtful Accounts"
+      ],
+      "answer": "Debit Allowance for Doubtful Accounts; Credit Accounts Receivable",
+      "explanation": "The write-off uses the existing allowance rather than creating a new expense.",
+      "hint": "The expense was estimated earlier."
+    },
+    {
+      "id": 11,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Interest earned on a note receivable is generally recognized:",
+      "options": [
+        "Only when cash is collected",
+        "Over time as the note is outstanding",
+        "At the date the note is signed only",
+        "As inventory expense"
+      ],
+      "answer": "Over time as the note is outstanding",
+      "explanation": "Interest revenue accrues over the life of the note.",
+      "hint": "Time is part of the interest formula."
+    },
+    {
+      "id": 12,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Allowance for Doubtful Accounts",
+      "options": [
+        "Asset",
+        "Contra-asset",
+        "Current liability",
+        "Expense"
+      ],
+      "answer": "Contra-asset",
+      "explanation": "The allowance offsets accounts receivable to arrive at net receivables.",
+      "hint": "It reduces the carrying value of A/R."
+    },
+    {
+      "id": 13,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Why is the allowance method preferred to the direct write-off method under accrual accounting?",
+      "options": [
+        "It records more cash",
+        "It matches expected credit losses to the period of related sales",
+        "It avoids estimating anything",
+        "It eliminates the need for receivables"
+      ],
+      "answer": "It matches expected credit losses to the period of related sales",
+      "explanation": "The allowance method records estimated bad debt expense in the same period as the credit sales.",
+      "hint": "Think matching principle."
+    },
+    {
+      "id": 14,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A 12,000 note receivable carries 6% annual interest for 90 days. Interest revenue at maturity equals:",
+      "answer": 180,
+      "explanation": "12,000 x 0.06 x 90/360 = 180.",
+      "hint": "Principal times rate times time."
+    },
+    {
+      "id": 15,
+      "topic": "Receivables & Allowance",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "When a firm uses an aging schedule to estimate uncollectibles, the number it is targeting directly is the:",
+      "options": [
+        "Bad debt expense for the year only",
+        "Desired ending balance in the allowance account",
+        "Cash to be collected next year",
+        "Total sales on credit"
+      ],
+      "answer": "Desired ending balance in the allowance account",
+      "explanation": "The aging method focuses on the correct ending allowance balance, then backs into the adjustment.",
+      "hint": "The balance sheet target comes first."
+    },
+    {
+      "id": 16,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Finished goods inventory",
+      "options": [
+        "Current asset",
+        "Long-term asset",
+        "Current liability",
+        "Expense"
+      ],
+      "answer": "Current asset",
+      "explanation": "Finished goods are inventory held for sale and are expected to turn into cash within the operating cycle.",
+      "hint": "Inventory is still an asset before sale."
+    },
+    {
+      "id": 17,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Which inventory category represents products that are completed and ready to be sold by a manufacturer?",
+      "options": [
+        "Raw materials",
+        "Work in process",
+        "Finished goods",
+        "Supplies expense"
+      ],
+      "answer": "Finished goods",
+      "explanation": "Finished goods are complete products ready for sale.",
+      "hint": "Think final stage."
+    },
+    {
+      "id": 18,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Beginning inventory is 100 units at 10 each, purchases are 50 units at 14 each, and 60 units are sold. Using periodic weighted-average, COGS equals:",
+      "answer": 680,
+      "explanation": "Goods available cost = 1,700 across 150 units, so weighted-average cost is 11.333. COGS for 60 units is about 680.",
+      "hint": "Compute average cost per unit first."
+    },
+    {
+      "id": 19,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "During periods of rising purchase prices, which method usually produces the lowest net income?",
+      "options": [
+        "FIFO",
+        "LIFO",
+        "Weighted average",
+        "Specific identification always"
+      ],
+      "answer": "LIFO",
+      "explanation": "LIFO pushes the newest, higher costs into COGS when prices are rising.",
+      "hint": "Higher COGS means lower income."
+    },
+    {
+      "id": 20,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Goods available for sale is 12,000 and ending inventory is 3,500. Cost of goods sold equals:",
+      "answer": 8500,
+      "explanation": "COGS = 12,000 - 3,500 = 8,500.",
+      "hint": "Goods available minus ending inventory."
+    },
+    {
+      "id": 21,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Under a periodic inventory system, cost of goods sold is determined:",
+      "options": [
+        "Each time a sale is recorded",
+        "Only at the end of the period after counting inventory",
+        "Only when cash is collected from customers",
+        "At the moment goods are purchased"
+      ],
+      "answer": "Only at the end of the period after counting inventory",
+      "explanation": "The periodic system waits until period-end to compute ending inventory and COGS.",
+      "hint": "Periodic means not updated continuously."
+    },
+    {
+      "id": 22,
+      "topic": "Inventory",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "If ending inventory is overstated, what is the most direct effect on that period's statements?",
+      "options": [
+        "COGS is overstated and income is understated",
+        "COGS is understated and income is overstated",
+        "Assets are understated and liabilities overstated",
+        "Cash is overstated and revenue understated"
+      ],
+      "answer": "COGS is understated and income is overstated",
+      "explanation": "Overstated ending inventory reduces COGS too much, which inflates gross profit and net income.",
+      "hint": "COGS = goods available - ending inventory."
+    },
+    {
+      "id": 23,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Beginning inventory is 40 units at 5 and purchases are 60 units at 7. If 50 units are sold and the company uses periodic FIFO, ending inventory equals:",
+      "answer": 350,
+      "explanation": "Periodic FIFO leaves the newest costs in ending inventory, so 50 remaining units x 7 = 350.",
+      "hint": "FIFO leaves the latest layer in ending inventory."
+    },
+    {
+      "id": 24,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Inventory is classified as a current asset because it is expected to be:",
+      "options": [
+        "Depreciated over many years",
+        "Sold or consumed within the operating cycle",
+        "Paid only with long-term debt",
+        "Recorded at market value every day"
+      ],
+      "answer": "Sold or consumed within the operating cycle",
+      "explanation": "Inventory is part of the short-run operating cycle and is expected to turn into sales and then cash.",
+      "hint": "Think operating cycle."
+    },
+    {
+      "id": 25,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A building costs 440,000, has 60,000 salvage value, and a 10-year life. Annual straight-line depreciation is:",
+      "answer": 38000,
+      "explanation": "(440,000 - 60,000) / 10 = 38,000.",
+      "hint": "Cost minus salvage, divided by life."
+    },
+    {
+      "id": 26,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Machinery costs 300,000, has 45,000 salvage value, and an 8-year life. Annual straight-line depreciation is:",
+      "answer": 31875,
+      "explanation": "(300,000 - 45,000) / 8 = 31,875.",
+      "hint": "Depreciable base divided by useful life."
+    },
+    {
+      "id": 27,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Which cost should usually be expensed rather than capitalized?",
+      "options": [
+        "Adding hydraulic lifts that let a truck carry larger loads",
+        "Installing a more durable new roof",
+        "Routine roof-tile maintenance",
+        "Building an attached warehouse extension"
+      ],
+      "answer": "Routine roof-tile maintenance",
+      "explanation": "Routine maintenance keeps an asset in normal operating condition and is expensed.",
+      "hint": "Maintenance versus improvement."
+    },
+    {
+      "id": 28,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Accumulated depreciation is best described as a:",
+      "options": [
+        "Cash reserve for replacement",
+        "Contra-asset",
+        "Current liability",
+        "Revenue account"
+      ],
+      "answer": "Contra-asset",
+      "explanation": "Accumulated depreciation offsets the related PP&E account on the balance sheet.",
+      "hint": "It reduces carrying value."
+    },
+    {
+      "id": 29,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Equipment cost is 300,000 and accumulated depreciation is 95,000. Book value equals:",
+      "answer": 205000,
+      "explanation": "Book value = 300,000 - 95,000 = 205,000.",
+      "hint": "Cost minus accumulated depreciation."
+    },
+    {
+      "id": 30,
+      "topic": "PP&E + Intangibles",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "If equipment with a 40,000 book value is sold for 46,000 cash, the seller records a:",
+      "options": [
+        "Gain of 6,000",
+        "Loss of 6,000",
+        "Gain of 40,000",
+        "Loss of 46,000"
+      ],
+      "answer": "Gain of 6,000",
+      "explanation": "Cash received above book value creates a gain equal to 6,000.",
+      "hint": "Compare cash proceeds to book value."
+    },
+    {
+      "id": 31,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A machine cost 100,000, has 10,000 salvage value, and an original 9-year life. After 3 years of straight-line depreciation, remaining life is revised to 5 years and salvage to 5,000. New annual depreciation is:",
+      "answer": 13000,
+      "explanation": "Original annual depreciation was 10,000, so book value after 3 years is 70,000. New depreciation = (70,000 - 5,000) / 5 = 13,000.",
+      "hint": "Use current book value going forward."
+    },
+    {
+      "id": 32,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "A patent with a finite useful life is generally:",
+      "options": [
+        "Not amortized",
+        "Amortized over its useful life",
+        "Reported as a current liability",
+        "Written off entirely when purchased"
+      ],
+      "answer": "Amortized over its useful life",
+      "explanation": "Finite-life intangibles are amortized systematically over the periods benefited.",
+      "hint": "Finite life means cost allocation over time."
+    },
+    {
+      "id": 33,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "An indefinite-life trademark is generally:",
+      "options": [
+        "Depreciated using straight-line",
+        "Amortized over 5 years",
+        "Not amortized but reviewed for impairment",
+        "Recorded as inventory"
+      ],
+      "answer": "Not amortized but reviewed for impairment",
+      "explanation": "Indefinite-life intangibles are not amortized because no finite life is assigned, but they are tested for impairment.",
+      "hint": "Indefinite life changes the cost-allocation rule."
+    },
+    {
+      "id": 34,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Patent",
+      "options": [
+        "Current asset",
+        "Tangible PP&E",
+        "Finite-life intangible",
+        "Current liability"
+      ],
+      "answer": "Finite-life intangible",
+      "explanation": "A patent is an intangible asset and is usually treated as having a finite useful life.",
+      "hint": "No physical substance, but future benefit."
+    },
+    {
+      "id": 35,
+      "topic": "PP&E + Intangibles",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "When an impairment loss is recognized on a long-lived asset, the most direct effect is that the asset's carrying amount and current income both:",
+      "options": [
+        "Increase",
+        "Decrease",
+        "Stay unchanged",
+        "Turn into liabilities"
+      ],
+      "answer": "Decrease",
+      "explanation": "Impairment reduces the recorded carrying value of the asset and lowers income through a loss.",
+      "hint": "Losses reduce both value and income."
+    },
+    {
+      "id": 36,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Cash collected from a customer before the service is performed is initially recorded as:",
+      "options": [
+        "Revenue",
+        "Unearned revenue",
+        "Accounts receivable",
+        "Retained earnings"
+      ],
+      "answer": "Unearned revenue",
+      "explanation": "The company owes a service, so the amount is a liability until earned.",
+      "hint": "Cash received before performance."
+    },
+    {
+      "id": 37,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "On October 1 a company signs a 50,000 note at 6% annual interest. Interest expense for the three months ended December 31 equals:",
+      "answer": 750,
+      "explanation": "50,000 x 0.06 x 3/12 = 750.",
+      "hint": "Three months of annual interest."
+    },
+    {
+      "id": 38,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "A note payable due within one year is usually classified as a:",
+      "options": [
+        "Current liability",
+        "Long-term asset",
+        "Contra-asset",
+        "Revenue account"
+      ],
+      "answer": "Current liability",
+      "explanation": "Amounts due within the next year or operating cycle are current liabilities.",
+      "hint": "Focus on settlement timing."
+    },
+    {
+      "id": 39,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "An accrued expense is best described as:",
+      "options": [
+        "Cash received before revenue is earned",
+        "An expense incurred but not yet paid",
+        "A gain on asset disposal",
+        "Inventory purchased on credit only"
+      ],
+      "answer": "An expense incurred but not yet paid",
+      "explanation": "Accrual accounting records the obligation when incurred even before cash is paid.",
+      "hint": "Expense exists before the cash payment."
+    },
+    {
+      "id": 40,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Interest payable",
+      "options": [
+        "Current asset",
+        "Current liability",
+        "Long-term asset",
+        "Revenue"
+      ],
+      "answer": "Current liability",
+      "explanation": "Interest payable is an obligation already incurred but not yet paid.",
+      "hint": "Payable usually signals a liability."
+    },
+    {
+      "id": 41,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "When a company borrows cash from a bank, what happens immediately?",
+      "options": [
+        "Assets increase and liabilities increase",
+        "Assets decrease and liabilities decrease",
+        "Expenses increase and equity decreases",
+        "Revenue increases and cash increases"
+      ],
+      "answer": "Assets increase and liabilities increase",
+      "explanation": "Cash goes up and the note payable or loan payable also goes up.",
+      "hint": "Borrowing is not revenue."
+    },
+    {
+      "id": 42,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A 12,000 note payable carries 9% annual interest and has been outstanding for 2 months. Interest accrued equals:",
+      "answer": 180,
+      "explanation": "12,000 x 0.09 x 2/12 = 180.",
+      "hint": "Use the annual rate and fraction of a year."
+    },
+    {
+      "id": 43,
+      "topic": "Current Liabilities",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Which statement about current liabilities is correct?",
+      "options": [
+        "They include only debts that must be paid in cash",
+        "Unearned revenue can be a current liability",
+        "They are never accrued at period-end",
+        "They are always long-term obligations"
+      ],
+      "answer": "Unearned revenue can be a current liability",
+      "explanation": "Current liabilities include obligations like unearned revenue and accrued interest, not just cash-pay debts.",
+      "hint": "Think obligations, not just cash payments."
+    },
+    {
+      "id": 44,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Unearned revenue",
+      "options": [
+        "Current asset",
+        "Current liability",
+        "Expense",
+        "Equity"
+      ],
+      "answer": "Current liability",
+      "explanation": "Cash was collected before the related performance was delivered, so the company still owes service.",
+      "hint": "Payment received, work still owed."
+    },
+    {
+      "id": 45,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Net credit sales are 120,000 and average accounts receivable is 20,000. Accounts receivable turnover is:",
+      "answer": 6,
+      "explanation": "A/R turnover = 120,000 / 20,000 = 6.",
+      "hint": "Sales over average receivables."
+    },
+    {
+      "id": 46,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "If accounts receivable turnover is 5, days' sales in receivables is approximately:",
+      "answer": 73,
+      "explanation": "365 / 5 = 73 days.",
+      "hint": "Use the inverse-style days formula."
+    },
+    {
+      "id": 47,
+      "topic": "Ratios & Turnover",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "A high days' sales in receivables ratio usually signals:",
+      "options": [
+        "Fast collection from customers",
+        "Difficulty collecting credit sales",
+        "Higher depreciation expense",
+        "Lower current liabilities automatically"
+      ],
+      "answer": "Difficulty collecting credit sales",
+      "explanation": "A higher days measure means receivables are sitting longer before being converted to cash.",
+      "hint": "More days usually means slower collection."
+    },
+    {
+      "id": 48,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "A company with a higher PPE turnover ratio than a competitor most plausibly:",
+      "options": [
+        "Generates more sales per dollar of average net PPE",
+        "Always has more expensive real estate",
+        "Must have a higher current ratio",
+        "Must be using LIFO"
+      ],
+      "answer": "Generates more sales per dollar of average net PPE",
+      "explanation": "PPE turnover measures sales relative to average net PPE invested in operations.",
+      "hint": "It is a sales-to-net-PPE efficiency ratio."
+    },
+    {
+      "id": 49,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Current assets are 180 and current liabilities are 120. Current ratio equals:",
+      "answer": 1.5,
+      "explanation": "180 / 120 = 1.5.",
+      "hint": "Current assets divided by current liabilities."
+    },
+    {
+      "id": 50,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Cash is 20, accounts receivable is 40, short-term investments are 30, and current liabilities are 100. Quick ratio equals:",
+      "answer": 0.9,
+      "explanation": "(20 + 40 + 30) / 100 = 0.9.",
+      "hint": "Use only the quick assets."
+    },
+    {
+      "id": 51,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Why is the quick ratio usually lower than the current ratio?",
+      "options": [
+        "It adds long-term assets to the numerator",
+        "It excludes inventory and other less-liquid current assets",
+        "It uses liabilities in the numerator",
+        "It ignores accounts receivable"
+      ],
+      "answer": "It excludes inventory and other less-liquid current assets",
+      "explanation": "The quick ratio strips out assets that are not as close to cash as cash, short-term investments, and receivables.",
+      "hint": "Quick means more liquid."
+    },
+    {
+      "id": 52,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Sales are 900 and average net PPE is 300. PPE turnover equals:",
+      "answer": 3,
+      "explanation": "900 / 300 = 3.",
+      "hint": "Sales over average net PPE."
+    },
+    {
+      "id": 53,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Future value is 1,210, discount rate is 10%, and n = 2. Present value equals:",
+      "answer": 1000,
+      "explanation": "1,210 / (1.10)^2 = 1,000.",
+      "hint": "Walk future cash back to today."
+    },
+    {
+      "id": 54,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Receiving cash sooner rather than later is preferred because:",
+      "options": [
+        "Depreciation becomes larger",
+        "Money has time value",
+        "Liabilities disappear",
+        "Inventory becomes current"
+      ],
+      "answer": "Money has time value",
+      "explanation": "Cash today can be invested or used immediately, making it worth more than the same nominal amount later.",
+      "hint": "Why does present value exist?"
+    },
+    {
+      "id": 55,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "If present value is 1,000 and the annual rate is 10% for one year, future value equals:",
+      "answer": 1100,
+      "explanation": "1,000 x 1.10 = 1,100.",
+      "hint": "Compound today's amount forward."
+    },
+    {
+      "id": 56,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "mcq",
+      "prompt": "Discounting means:",
+      "options": [
+        "Moving a future amount back to present value",
+        "Converting liabilities into equity",
+        "Eliminating interest expense",
+        "Recording bad debt expense"
+      ],
+      "answer": "Moving a future amount back to present value",
+      "explanation": "Discounting reverses the time-value growth process to express a future amount in today's dollars.",
+      "hint": "Future to now."
+    },
+    {
+      "id": 57,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "What is the present value of 5,000 due in one year if the discount rate is 25%?",
+      "answer": 4000,
+      "explanation": "5,000 / 1.25 = 4,000.",
+      "hint": "Divide by 1 + r."
+    },
+    {
+      "id": 58,
+      "topic": "TVM Basics",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "If the discount rate increases while the future value and timing stay fixed, present value will usually:",
+      "options": [
+        "Increase",
+        "Decrease",
+        "Stay the same",
+        "Turn into book value"
+      ],
+      "answer": "Decrease",
+      "explanation": "A higher discount rate makes future cash worth less today.",
+      "hint": "Stronger discounting lowers present value."
+    },
+    {
+      "id": 59,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "An aging schedule shows 12,000 at 4% uncollectible, 8,000 at 10%, and 5,000 at 20%. The desired ending allowance is:",
+      "answer": 2280,
+      "explanation": "480 + 800 + 1,000 = 2,280.",
+      "hint": "Multiply each bucket by its loss rate, then add."
+    },
+    {
+      "id": 60,
+      "topic": "Receivables & Allowance",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "If a company recovers a receivable that had previously been written off under the allowance method, the firm first:",
+      "options": [
+        "Records bad debt expense again",
+        "Reinstates the receivable and the allowance",
+        "Credits revenue directly",
+        "Debits inventory"
+      ],
+      "answer": "Reinstates the receivable and the allowance",
+      "explanation": "The account is restored before cash is collected so the recovery reverses the earlier write-off structure correctly.",
+      "hint": "Undo the write-off first, then record the cash collection."
+    },
+    {
+      "id": 61,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Notes receivable due in 60 days",
+      "options": [
+        "Current asset",
+        "Long-term asset",
+        "Current liability",
+        "Contra-asset"
+      ],
+      "answer": "Current asset",
+      "explanation": "A note receivable due within the year is an asset expected to convert into cash soon.",
+      "hint": "Ask who will receive the cash."
+    },
+    {
+      "id": 62,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Net credit sales are 180,000 and average accounts receivable is 30,000. Days' sales in receivables is approximately:",
+      "answer": 61,
+      "explanation": "A/R turnover is 180,000 / 30,000 = 6, so days' sales in receivables is 365 / 6, about 61 days.",
+      "hint": "Turnover first, days second."
+    },
+    {
+      "id": 63,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Beginning inventory is 80 units at 6 each and purchases are 40 units at 9 each. If 70 units are sold and periodic FIFO is used, ending inventory equals:",
+      "answer": 450,
+      "explanation": "FIFO leaves the newest 50 units in ending inventory: 40 at 9 plus 10 at 6, for 360 + 90 = 450.",
+      "hint": "Ending inventory under FIFO keeps the newest layers."
+    },
+    {
+      "id": 64,
+      "topic": "Inventory",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Which statement best distinguishes a perpetual inventory system from a periodic system?",
+      "options": [
+        "Perpetual updates inventory and COGS continuously as sales occur",
+        "Periodic updates inventory every time cash is collected",
+        "Perpetual can be used only with FIFO",
+        "Periodic eliminates the need to count ending inventory"
+      ],
+      "answer": "Perpetual updates inventory and COGS continuously as sales occur",
+      "explanation": "Perpetual systems record inventory changes and COGS as transactions happen, while periodic systems wait until period-end.",
+      "hint": "Think timing of updates."
+    },
+    {
+      "id": 65,
+      "topic": "Inventory",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "When purchase prices are rising, which method usually reports the highest total assets?",
+      "options": [
+        "FIFO",
+        "LIFO",
+        "Weighted average",
+        "All methods report the same total assets"
+      ],
+      "answer": "FIFO",
+      "explanation": "FIFO leaves higher recent costs in ending inventory, which increases current assets and total assets.",
+      "hint": "Higher ending inventory means higher assets."
+    },
+    {
+      "id": 66,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A company sells 400 units for 5 each. Revenue recognized from those sales is:",
+      "answer": 2000,
+      "explanation": "Revenue is 400 x 5 = 2,000.",
+      "hint": "Units sold times selling price."
+    },
+    {
+      "id": 67,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Equipment has a 52,000 book value and is sold for 47,500 cash. The loss on sale equals:",
+      "answer": 4500,
+      "explanation": "Loss = 52,000 - 47,500 = 4,500.",
+      "hint": "Compare proceeds to book value."
+    },
+    {
+      "id": 68,
+      "topic": "PP&E + Intangibles",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "A change in useful life estimate for PP&E affects depreciation:",
+      "options": [
+        "Retroactively for all prior years",
+        "Only prospectively from the date of change forward",
+        "Only if the asset is sold",
+        "Only if salvage value stays unchanged"
+      ],
+      "answer": "Only prospectively from the date of change forward",
+      "explanation": "Changes in depreciation estimates are handled prospectively; past statements are not rewritten.",
+      "hint": "Estimate changes are forward-looking."
+    },
+    {
+      "id": 69,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "classification",
+      "prompt": "Classify the account: Trademark with indefinite life",
+      "options": [
+        "Current asset",
+        "Finite-life intangible",
+        "Indefinite-life intangible",
+        "Current liability"
+      ],
+      "answer": "Indefinite-life intangible",
+      "explanation": "An indefinite-life trademark is an intangible asset not subject to amortization but reviewed for impairment.",
+      "hint": "No physical substance and no finite life assigned."
+    },
+    {
+      "id": 70,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A truck cost 84,000, salvage is 4,000, and useful life is 8 years. Annual straight-line depreciation is:",
+      "answer": 10000,
+      "explanation": "(84,000 - 4,000) / 8 = 10,000.",
+      "hint": "Depreciable base divided by life."
+    },
+    {
+      "id": 71,
+      "topic": "Current Liabilities",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "At year-end, unpaid interest that has already been incurred should be recorded as:",
+      "options": [
+        "Unearned revenue",
+        "Interest payable",
+        "Accounts receivable",
+        "Accumulated depreciation"
+      ],
+      "answer": "Interest payable",
+      "explanation": "The company owes interest from time already elapsed, so a current liability is recognized.",
+      "hint": "Expense incurred but not yet paid."
+    },
+    {
+      "id": 72,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A 24,000 note carries 12% annual interest and has been outstanding for 4 months. Interest accrued equals:",
+      "answer": 960,
+      "explanation": "24,000 x 0.12 x 4/12 = 960.",
+      "hint": "Principal x rate x time."
+    },
+    {
+      "id": 73,
+      "topic": "Ratios & Turnover",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "If a company's current ratio is much higher than its quick ratio, the firm most likely has:",
+      "options": [
+        "Very little inventory",
+        "A large amount of inventory or prepaid items in current assets",
+        "No current liabilities",
+        "Negative sales"
+      ],
+      "answer": "A large amount of inventory or prepaid items in current assets",
+      "explanation": "The quick ratio removes less-liquid current assets, so a big gap usually means those assets are substantial.",
+      "hint": "What does quick ratio leave out?"
+    },
+    {
+      "id": 74,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Sales are 1,200 and average net PPE is 400. PPE turnover equals:",
+      "answer": 3,
+      "explanation": "1,200 / 400 = 3.",
+      "hint": "Sales divided by average net PPE."
+    },
+    {
+      "id": 75,
+      "topic": "Receivables & Allowance",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Under the allowance method, writing off a specific customer account causes net realizable value of receivables to:",
+      "options": [
+        "Decrease",
+        "Increase",
+        "Stay the same",
+        "Become impossible to measure"
+      ],
+      "answer": "Stay the same",
+      "explanation": "A write-off reduces gross accounts receivable and the allowance by the same amount, so net realizable value is unchanged at the write-off date.",
+      "hint": "Both the receivable and the contra account move together."
+    },
+    {
+      "id": 76,
+      "topic": "Receivables & Allowance",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "An aging schedule says the ending Allowance for Doubtful Accounts should be 9,800. Before adjustment, the allowance has a 1,700 credit balance. Bad debt expense should be:",
+      "answer": 8100,
+      "explanation": "To raise the allowance from an unadjusted 1,700 credit to a desired 9,800 credit, record 8,100 of bad debt expense.",
+      "hint": "Target ending allowance minus current allowance balance."
+    },
+    {
+      "id": 77,
+      "topic": "Receivables & Allowance",
+      "family": "mixed",
+      "type": "numeric",
+      "prompt": "Net credit sales are 360,000 and average net accounts receivable is 45,000. Accounts receivable turnover equals:",
+      "answer": 8,
+      "explanation": "Accounts receivable turnover = net credit sales / average net receivables = 360,000 / 45,000 = 8.",
+      "hint": "Sales over average receivables."
+    },
+    {
+      "id": 78,
+      "topic": "Receivables & Allowance",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Compared with an open account receivable, a note receivable usually gives the lender:",
+      "options": [
+        "Lower legal claim",
+        "An explicit interest component",
+        "No maturity date",
+        "No collection risk"
+      ],
+      "answer": "An explicit interest component",
+      "explanation": "Notes receivable are formal credit instruments and normally specify a maturity date and stated interest.",
+      "hint": "Think about what a signed note adds beyond a simple invoice."
+    },
+    {
+      "id": 79,
+      "topic": "Inventory",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Using FIFO, a periodic system and a perpetual system will generally report:",
+      "options": [
+        "Different ending inventory and different COGS",
+        "The same ending inventory and the same COGS",
+        "The same COGS but different sales",
+        "The same sales but no inventory balance"
+      ],
+      "answer": "The same ending inventory and the same COGS",
+      "explanation": "Under FIFO, the earliest costs flow to COGS first under both periodic and perpetual tracking, so the reported inventory and COGS generally match.",
+      "hint": "FIFO keeps the oldest costs leaving first no matter how you track the records."
+    },
+    {
+      "id": 80,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Beginning inventory is 12,000, purchases are 58,000, and ending inventory is 17,000. Cost of goods sold equals:",
+      "answer": 53000,
+      "explanation": "COGS = beginning inventory + purchases - ending inventory = 12,000 + 58,000 - 17,000 = 53,000.",
+      "hint": "Goods available for sale minus ending inventory."
+    },
+    {
+      "id": 81,
+      "topic": "Inventory",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "When purchase costs are rising, LIFO compared with FIFO usually reports:",
+      "options": [
+        "Lower COGS and higher gross profit",
+        "Higher COGS and lower gross profit",
+        "The same COGS and the same ending inventory",
+        "Higher ending inventory and higher gross profit"
+      ],
+      "answer": "Higher COGS and lower gross profit",
+      "explanation": "LIFO sends the most recent, higher costs to COGS first in rising-price periods, which lowers gross profit.",
+      "hint": "Higher expense means lower gross profit."
+    },
+    {
+      "id": 82,
+      "topic": "Inventory",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Goods available for sale total 90,000 and cost of goods sold is 63,000. Ending inventory is:",
+      "answer": 27000,
+      "explanation": "Ending inventory = goods available for sale - COGS = 90,000 - 63,000 = 27,000.",
+      "hint": "Whatever was not sold stays in ending inventory."
+    },
+    {
+      "id": 83,
+      "topic": "PP&E + Intangibles",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Routine repairs on equipment are expensed immediately because they:",
+      "options": [
+        "Create a new depreciable asset",
+        "Do not create additional future economic benefit beyond the current period",
+        "Always increase salvage value",
+        "Are treated the same as major improvements"
+      ],
+      "answer": "Do not create additional future economic benefit beyond the current period",
+      "explanation": "Ordinary repairs maintain the asset in working condition rather than extending life or increasing productive capacity.",
+      "hint": "Maintenance is not the same as an improvement."
+    },
+    {
+      "id": 84,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A machine costs 63,000, freight is 1,200, installation is 1,800, and employee training is 700. The capitalized machine cost is:",
+      "answer": 66000,
+      "explanation": "Capitalize purchase price, freight, and installation: 63,000 + 1,200 + 1,800 = 66,000. Training is expensed.",
+      "hint": "Include costs to acquire and ready the asset for use, but not staff training."
+    },
+    {
+      "id": 85,
+      "topic": "PP&E + Intangibles",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A patent cost 36,000 and has a 9-year useful life with no residual value. Annual amortization expense is:",
+      "answer": 4000,
+      "explanation": "Annual amortization = 36,000 / 9 = 4,000.",
+      "hint": "Finite-life intangible cost divided by useful life."
+    },
+    {
+      "id": 86,
+      "topic": "Current Liabilities",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "The current portion of a long-term note payable that is due within the next year should be reported as a:",
+      "options": [
+        "Long-term liability",
+        "Current liability",
+        "Contra-liability",
+        "Receivable"
+      ],
+      "answer": "Current liability",
+      "explanation": "Amounts due within the next operating cycle or year are classified as current liabilities.",
+      "hint": "Classification depends on when the payment is due."
+    },
+    {
+      "id": 87,
+      "topic": "Current Liabilities",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "A company collects 18,000 cash in advance for a 6-month service contract. After 2 months of service, the unearned revenue balance should be:",
+      "answer": 12000,
+      "explanation": "Two of six months have been earned, so 2/6 x 18,000 = 6,000 recognized. Unearned revenue remaining is 12,000.",
+      "hint": "Start with the cash collected, then subtract the earned portion."
+    },
+    {
+      "id": 88,
+      "topic": "Ratios & Turnover",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "Net credit sales are 730,000 and average net accounts receivable is 73,000. Days' sales in receivables is approximately:",
+      "answer": 36.5,
+      "explanation": "Receivables turnover is 10, so days' sales in receivables = 365 / 10 = 36.5 days.",
+      "hint": "Find turnover first, then convert it into days."
+    },
+    {
+      "id": 89,
+      "topic": "Ratios & Turnover",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "If inventory turnover rises while sales remain stable, the most likely explanation is that average inventory has:",
+      "options": [
+        "Increased",
+        "Decreased",
+        "Stayed exactly the same",
+        "Become a current liability"
+      ],
+      "answer": "Decreased",
+      "explanation": "Inventory turnover = COGS or sales-related inventory flow divided by average inventory. If the numerator is stable and turnover rises, average inventory is lower.",
+      "hint": "A bigger ratio with the same top number means the bottom number fell."
+    },
+    {
+      "id": 90,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "What is the present value of 2,420 received in 2 years if the discount rate is 10%?",
+      "answer": 2000,
+      "explanation": "PV = 2,420 / (1.10^2) = 2,000.",
+      "hint": "Discount the future value back two periods."
+    },
+    {
+      "id": 91,
+      "topic": "TVM Basics",
+      "family": "mixed",
+      "type": "mcq",
+      "prompt": "Holding the future cash flow and number of years constant, present value is highest when the discount rate is:",
+      "options": [
+        "Lowest",
+        "Highest",
+        "Equal to zero only if the future cash flow is negative",
+        "Unaffected by the discount rate"
+      ],
+      "answer": "Lowest",
+      "explanation": "A lower discount rate reduces the amount of discounting, so today's present value is larger.",
+      "hint": "Less discounting leaves more value today."
+    },
+    {
+      "id": 92,
+      "topic": "TVM Basics",
+      "family": "drill",
+      "type": "numeric",
+      "prompt": "An amount of 1,500 is invested for 1 year at 8%. The future value is:",
+      "answer": 1620,
+      "explanation": "FV = 1,500 x 1.08 = 1,620.",
+      "hint": "Principal times 1 plus the rate."
+    }
+  ],
+  "statementEffects": [
+    {
+      "id": 1,
+      "transaction": "Record bad debt expense using an allowance estimate.",
+      "answer": {
+        "assets": "Down",
+        "liabilities": "No change",
+        "equity": "Down",
+        "netIncome": "Down",
+        "cash": "No change"
+      },
+      "why": "The allowance increases, which reduces net receivables. Bad debt expense lowers net income and therefore equity."
+    },
+    {
+      "id": 2,
+      "transaction": "Write off a specific account receivable under the allowance method.",
+      "answer": {
+        "assets": "No change",
+        "liabilities": "No change",
+        "equity": "No change",
+        "netIncome": "No change",
+        "cash": "No change"
+      },
+      "why": "Gross A/R and the allowance both go down by the same amount, so net receivables do not change."
+    },
+    {
+      "id": 3,
+      "transaction": "Purchase inventory on account.",
+      "answer": {
+        "assets": "Up",
+        "liabilities": "Up",
+        "equity": "No change",
+        "netIncome": "No change",
+        "cash": "No change"
+      },
+      "why": "Inventory rises and accounts payable rises."
+    },
+    {
+      "id": 4,
+      "transaction": "Sell inventory for cash at a profit.",
+      "answer": {
+        "assets": "Up",
+        "liabilities": "No change",
+        "equity": "Up",
+        "netIncome": "Up",
+        "cash": "Up"
+      },
+      "why": "Cash goes up and the sale increases net income and equity. The transaction includes both revenue and COGS, but the net effect is profitable."
+    },
+    {
+      "id": 5,
+      "transaction": "Accrue interest expense on a note payable at year-end.",
+      "answer": {
+        "assets": "No change",
+        "liabilities": "Up",
+        "equity": "Down",
+        "netIncome": "Down",
+        "cash": "No change"
+      },
+      "why": "Interest payable rises even though cash has not been paid yet, and the interest expense reduces income and equity."
+    },
+    {
+      "id": 6,
+      "transaction": "Pay cash for a major roof replacement that will extend the building's useful life.",
+      "answer": {
+        "assets": "No change",
+        "liabilities": "No change",
+        "equity": "No change",
+        "netIncome": "No change",
+        "cash": "Down"
+      },
+      "why": "Cash goes down and PP&E goes up. Total assets stay the same at the date of capitalization."
+    },
+    {
+      "id": 7,
+      "transaction": "Record annual straight-line depreciation expense.",
+      "answer": {
+        "assets": "Down",
+        "liabilities": "No change",
+        "equity": "Down",
+        "netIncome": "Down",
+        "cash": "No change"
+      },
+      "why": "Accumulated depreciation reduces the carrying value of PP&E, and depreciation expense lowers net income and equity."
+    },
+    {
+      "id": 8,
+      "transaction": "Collect cash from a customer on account.",
+      "answer": {
+        "assets": "No change",
+        "liabilities": "No change",
+        "equity": "No change",
+        "netIncome": "No change",
+        "cash": "Up"
+      },
+      "why": "Cash increases while accounts receivable decreases. Total assets do not change."
+    }
+  ],
+  "formulaSheet": [
+    {
+      "label": "Net accounts receivable",
+      "formula": "Accounts receivable - Allowance for doubtful accounts"
+    },
+    {
+      "label": "Bad debt adjustment",
+      "formula": "Desired ending allowance - Unadjusted allowance balance"
+    },
+    {
+      "label": "A/R turnover",
+      "formula": "Net credit sales / Average accounts receivable"
+    },
+    {
+      "label": "Days' sales in receivables",
+      "formula": "365 / A/R turnover"
+    },
+    {
+      "label": "Goods available for sale",
+      "formula": "Beginning inventory + Purchases"
+    },
+    {
+      "label": "COGS",
+      "formula": "Goods available for sale - Ending inventory"
+    },
+    {
+      "label": "Straight-line depreciation",
+      "formula": "(Cost - Salvage) / Useful life"
+    },
+    {
+      "label": "Book value",
+      "formula": "Cost - Accumulated depreciation"
+    },
+    {
+      "label": "Interest",
+      "formula": "Principal x Rate x Time"
+    },
+    {
+      "label": "Current ratio",
+      "formula": "Current assets / Current liabilities"
+    },
+    {
+      "label": "Quick ratio",
+      "formula": "(Cash + Short-term investments + Accounts receivable) / Current liabilities"
+    },
+    {
+      "label": "PPE turnover",
+      "formula": "Sales / Average net PPE"
+    },
+    {
+      "label": "Present value",
+      "formula": "FV / (1 + r)^n"
+    },
+    {
+      "label": "Future value",
+      "formula": "PV x (1 + r)^n"
+    }
+  ],
+  "miniCases": [
+    {
+      "id": 1,
+      "title": "Emmett's Exploration",
+      "mascot": "Chococat",
+      "story": "Emmett's has 36,000 of accounts receivable at year-end. The allowance currently has a 1,200 credit balance before adjustment. An aging schedule suggests the allowance should end at 3,000.",
+      "questions": [
+        {
+          "prompt": "What is the desired ending allowance balance?",
+          "type": "numeric",
+          "answer": 3000,
+          "explanation": "The aging schedule directly gives the desired ending allowance."
+        },
+        {
+          "prompt": "How much bad debt expense should be recorded?",
+          "type": "numeric",
+          "answer": 1800,
+          "explanation": "Needed adjustment = 3,000 desired ending balance - 1,200 current credit balance = 1,800."
+        },
+        {
+          "prompt": "What is net accounts receivable after adjustment?",
+          "type": "numeric",
+          "answer": 33000,
+          "explanation": "36,000 gross A/R - 3,000 allowance = 33,000 net A/R."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Dairy Faery Inventory Run",
+      "mascot": "Keroppi",
+      "story": "Beginning inventory is 100 units at 10 each. Later, the company buys 50 more units at 14 each. During the period it sells 60 units. Assume a periodic inventory system.",
+      "questions": [
+        {
+          "prompt": "Using periodic weighted-average, cost of goods sold is:",
+          "type": "numeric",
+          "answer": 680,
+          "explanation": "Goods available cost is 1,700 over 150 units, so weighted-average cost is about 11.333. Multiply by 60 units sold to get about 680."
+        },
+        {
+          "prompt": "Using periodic weighted-average, ending inventory is:",
+          "type": "numeric",
+          "answer": 1020,
+          "explanation": "The 90 units remaining are carried at the weighted-average cost of about 11.333, so ending inventory is about 1,020."
+        },
+        {
+          "prompt": "If purchase prices are rising, which method usually reports the highest ending inventory?",
+          "type": "mcq",
+          "options": [
+            "FIFO",
+            "LIFO",
+            "Weighted average",
+            "None of the methods"
+          ],
+          "answer": "FIFO",
+          "explanation": "FIFO leaves the most recent, higher costs in ending inventory when prices are rising."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "SoCal Asset Review",
+      "mascot": "Chococat",
+      "story": "SoCal buys machinery for 300,000 with a 45,000 salvage value and an 8-year life. After two full years of straight-line depreciation, accumulated depreciation is 63,750. On the first day of year three, the machinery is sold for 70,000 cash.",
+      "questions": [
+        {
+          "prompt": "Annual depreciation on the machinery is:",
+          "type": "numeric",
+          "answer": 31875,
+          "explanation": "(300,000 - 45,000) / 8 = 31,875."
+        },
+        {
+          "prompt": "Book value at the sale date is:",
+          "type": "numeric",
+          "answer": 236250,
+          "explanation": "300,000 - 63,750 = 236,250."
+        },
+        {
+          "prompt": "Selling the machinery for 70,000 produces a:",
+          "type": "mcq",
+          "options": [
+            "Gain",
+            "Loss",
+            "Neither gain nor loss",
+            "Revenue only"
+          ],
+          "answer": "Loss",
+          "explanation": "The cash proceeds are below the 236,250 book value, so the company records a loss."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Quarter-End Cleanup",
+      "mascot": "Keroppi",
+      "story": "On October 1, a company signs a 50,000 note payable at 6% due next March 31. On December 1, it collects 1,200 cash in advance for services to be delivered in January. Also assume the present value of 1,100 due in one year at 10% is needed for a side calculation.",
+      "questions": [
+        {
+          "prompt": "Interest expense accrued by December 31 is:",
+          "type": "numeric",
+          "answer": 750,
+          "explanation": "50,000 x 0.06 x 3/12 = 750."
+        },
+        {
+          "prompt": "The 1,200 collected in advance is initially credited to:",
+          "type": "mcq",
+          "options": [
+            "Revenue",
+            "Unearned revenue",
+            "Accounts receivable",
+            "Retained earnings"
+          ],
+          "answer": "Unearned revenue",
+          "explanation": "Cash was collected before the service was provided, so a liability is recorded first."
+        },
+        {
+          "prompt": "The present value of 1,100 due in one year at 10% is:",
+          "type": "numeric",
+          "answer": 1000,
+          "explanation": "1,100 / 1.10 = 1,000."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Liquidity and Collection Check",
+      "mascot": "Chococat",
+      "story": "A company reports current assets of 240, including inventory of 150, cash of 30, accounts receivable of 40, and short-term investments of 20. Current liabilities are 120. Net credit sales are 120,000 and average accounts receivable is 20,000.",
+      "questions": [
+        {
+          "prompt": "The current ratio is:",
+          "type": "numeric",
+          "answer": 2,
+          "explanation": "240 / 120 = 2.0."
+        },
+        {
+          "prompt": "The quick ratio is:",
+          "type": "numeric",
+          "answer": 0.75,
+          "explanation": "(30 + 40 + 20) / 120 = 0.75."
+        },
+        {
+          "prompt": "Accounts receivable turnover is:",
+          "type": "numeric",
+          "answer": 6,
+          "explanation": "120,000 / 20,000 = 6."
+        }
+      ]
+    }
+  ],
+  "sessionBlueprints": {
+    "drill": {
+      "size": 6,
+      "quotas": {
+        "Receivables & Allowance": 1,
+        "Inventory": 1,
+        "PP&E + Intangibles": 1,
+        "Current Liabilities": 1,
+        "Ratios & Turnover": 1,
+        "TVM Basics": 1
+      }
+    },
+    "mockConfidence": {
+      "size": 12,
+      "quotas": {
+        "Receivables & Allowance": 3,
+        "Inventory": 2,
+        "PP&E + Intangibles": 3,
+        "Current Liabilities": 2,
+        "Ratios & Turnover": 1,
+        "TVM Basics": 1
+      }
+    },
+    "mockExam": {
+      "size": 18,
+      "quotas": {
+        "Receivables & Allowance": 4,
+        "Inventory": 4,
+        "PP&E + Intangibles": 4,
+        "Current Liabilities": 3,
+        "Ratios & Turnover": 2,
+        "TVM Basics": 1
+      }
+    }
+  }
+}
