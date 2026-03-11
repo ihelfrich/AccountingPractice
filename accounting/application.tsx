@@ -188,6 +188,17 @@ const studyBoards: StickerItem[] = [
   }
 ];
 
+type ActiveSessionMode = "diagnostic" | "drill" | "weak" | "mockConfidence" | "mockExam";
+type ViewMode = "home" | "learn" | "effects" | "cases" | "tvm" | ActiveSessionMode;
+
+type SessionSummary = {
+  mode: ActiveSessionMode;
+  score: number;
+  total: number;
+  topic: string;
+  missedTopics: string[];
+};
+
 type StatementGuess = Record<keyof StatementEffect["answer"], StatementDirection | "">;
 
 type MiniCaseQuestionProps = {
@@ -271,8 +282,29 @@ function gradeStatementEffect(guess: StatementGuess, answer: StatementEffect["an
   return correct;
 }
 
+function isSessionMode(mode: string): mode is ActiveSessionMode {
+  return mode === "diagnostic" || mode === "drill" || mode === "weak" || mode === "mockConfidence" || mode === "mockExam";
+}
+
+function modeLabel(mode: ActiveSessionMode) {
+  switch (mode) {
+    case "diagnostic":
+      return "Diagnostic";
+    case "drill":
+      return "Burst drill";
+    case "weak":
+      return "Weak spots";
+    case "mockConfidence":
+      return "Confidence mock";
+    case "mockExam":
+      return "Exam mock";
+    default:
+      return mode;
+  }
+}
+
 export default function USCAccountingPracticeTool() {
-  const [mode, setMode] = useState("home");
+  const [mode, setMode] = useState<ViewMode>("home");
   const [selectedTopic, setSelectedTopic] = useState("All");
   const [sessionQuestions, setSessionQuestions] = useState<BankQuestion[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -282,9 +314,14 @@ export default function USCAccountingPracticeTool() {
   const [showHint, setShowHint] = useState(false);
   const [diagnosticDone, setDiagnosticDone] = useState(false);
   const [score, setScore] = useState(0);
+  const [sessionScore, setSessionScore] = useState(0);
+  const [sessionMisses, setSessionMisses] = useState<Record<string, number>>({});
   const [attempts, setAttempts] = useState(0);
   const [streak, setStreak] = useState(0);
   const [missedTopics, setMissedTopics] = useState<Record<string, number>>({});
+  const [loadedSessionMode, setLoadedSessionMode] = useState<ActiveSessionMode | null>(null);
+  const [loadedSessionTopic, setLoadedSessionTopic] = useState("All");
+  const [lastSessionSummary, setLastSessionSummary] = useState<SessionSummary | null>(null);
   const [rescueIndex, setRescueIndex] = useState(0);
   const [rescueFill, setRescueFill] = useState("");
   const [rescueReveal, setRescueReveal] = useState(false);
@@ -304,6 +341,7 @@ export default function USCAccountingPracticeTool() {
   const [caseNumeric, setCaseNumeric] = useState("");
   const [caseRevealed, setCaseRevealed] = useState(false);
   const [caseScore, setCaseScore] = useState(0);
+  const [lastCaseSummary, setLastCaseSummary] = useState<{ title: string; score: number; total: number } | null>(null);
   const [timelineFV, setTimelineFV] = useState("1100");
   const [timelineR, setTimelineR] = useState("10");
   const [timelineN, setTimelineN] = useState("1");
@@ -344,21 +382,40 @@ export default function USCAccountingPracticeTool() {
     setShowHint(false);
   }
 
-  function launch(modeName: string) {
-    const nextSession = modeName === "diagnostic" ? diagnosticQuestions : buildSession(modeName, selectedTopic, missedTopics, sessionCount + 1);
+  function launch(modeName: ActiveSessionMode, options?: { topicOverride?: string }) {
+    const topicForSession = options?.topicOverride ?? selectedTopic;
+    const nextSession = modeName === "diagnostic" ? diagnosticQuestions : buildSession(modeName, topicForSession, missedTopics, sessionCount + 1);
     setMode(modeName);
     setSessionQuestions(nextSession);
     setQuestionIndex(0);
+    setSessionScore(0);
+    setSessionMisses({});
+    setLoadedSessionMode(modeName);
+    setLoadedSessionTopic(topicForSession);
     setSessionCount((x: number) => x + 1);
     resetQuestionState();
   }
 
   function nextQuestion() {
     if (questionIndex + 1 >= sessionQuestions.length) {
+      if (isSessionMode(mode)) {
+        setLastSessionSummary({
+          mode,
+          score: sessionScore,
+          total: sessionQuestions.length,
+          topic: loadedSessionTopic,
+          missedTopics: Object.entries(sessionMisses)
+            .sort((a, b) => b[1] - a[1])
+            .map(([topic]) => topic)
+        });
+      }
       if (mode === "diagnostic") setDiagnosticDone(true);
       setMode("home");
       setSessionQuestions([]);
       setQuestionIndex(0);
+      setSessionScore(0);
+      setSessionMisses({});
+      setLoadedSessionMode(null);
       resetQuestionState();
       return;
     }
@@ -377,10 +434,12 @@ export default function USCAccountingPracticeTool() {
     setAttempts((a: number) => a + 1);
     if (correct) {
       setScore((s: number) => s + 1);
+      setSessionScore((s: number) => s + 1);
       setStreak((s: number) => s + 1);
     } else {
       setStreak(0);
       setMissedTopics((prev) => ({ ...prev, [currentQuestion.topic]: (prev[currentQuestion.topic] || 0) + 1 }));
+      setSessionMisses((prev) => ({ ...prev, [currentQuestion.topic]: (prev[currentQuestion.topic] || 0) + 1 }));
     }
     setRevealed(true);
   }
@@ -389,6 +448,8 @@ export default function USCAccountingPracticeTool() {
     setMode("home");
     setSessionQuestions([]);
     setQuestionIndex(0);
+    setSessionScore(0);
+    setSessionMisses({});
     setSelectedAnswer("");
     setNumericInput("");
     setRevealed(false);
@@ -398,13 +459,50 @@ export default function USCAccountingPracticeTool() {
     setAttempts(0);
     setStreak(0);
     setMissedTopics({});
+    setLoadedSessionMode(null);
+    setLoadedSessionTopic("All");
+    setLastSessionSummary(null);
     setSessionCount(0);
     setRescueIndex(0);
     setRescueFill("");
     setRescueReveal(false);
+    setEffectsIndex(0);
+    setEffectGuess({ assets: "", liabilities: "", equity: "", netIncome: "", cash: "" });
+    setEffectRevealed(false);
+    setEffectScore(null);
+    setCaseIndex(0);
+    setCaseQuestionIndex(0);
+    setCaseSelected("");
+    setCaseNumeric("");
+    setCaseRevealed(false);
+    setCaseScore(0);
+    setLastCaseSummary(null);
+    setTimelineFV("1100");
+    setTimelineR("10");
+    setTimelineN("1");
+  }
+
+  function handleModeChange(nextMode: string) {
+    if (isSessionMode(nextMode)) {
+      if (loadedSessionMode === nextMode && sessionQuestions.length > 0) {
+        setMode(nextMode);
+        return;
+      }
+      launch(nextMode);
+      return;
+    }
+    setMode(nextMode as ViewMode);
+  }
+
+  function chooseTopic(topic: string) {
+    setSelectedTopic(topic);
+    if (mode === "drill") {
+      launch("drill", { topicOverride: topic });
+    }
   }
 
   const isRecoveryRecommended = attempts > 0 && (rankedWeakTopics.length >= 3 || accuracy < 55);
+  const sessionProgressValue = sessionQuestions.length ? ((questionIndex + (revealed ? 1 : 0)) / sessionQuestions.length) * 100 : 0;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-rose-100 via-orange-50 to-sky-100 p-4 md:p-8">
@@ -537,7 +635,7 @@ export default function USCAccountingPracticeTool() {
           </div>
 
           <div>
-            <Tabs value={mode} onValueChange={setMode} className="space-y-4">
+            <Tabs value={mode} onValueChange={handleModeChange} className="space-y-4">
               <TabsList className="grid w-full grid-cols-5 rounded-2xl lg:grid-cols-10">
                 <TabsTrigger value="home">Home</TabsTrigger>
                 <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
@@ -555,6 +653,28 @@ export default function USCAccountingPracticeTool() {
                 <Card className="rounded-[2rem] shadow-lg">
                   <CardHeader><CardTitle>What this bank now covers</CardTitle></CardHeader>
                   <CardContent className="space-y-4 text-slate-700">
+                    {lastSessionSummary ? (
+                      <div className="rounded-[1.8rem] border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 shadow-sm">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <div className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-700">Latest run</div>
+                            <div className="mt-1 text-2xl font-black text-slate-900">{modeLabel(lastSessionSummary.mode)}: {lastSessionSummary.score}/{lastSessionSummary.total}</div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                              Topic setting: <span className="font-semibold text-slate-800">{lastSessionSummary.topic}</span>
+                              {lastSessionSummary.missedTopics.length ? ` · Focus next on ${lastSessionSummary.missedTopics.slice(0, 2).join(" and ")}.` : " · Clean run with no repeated weak spots."}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button onClick={() => launch(lastSessionSummary.mode, { topicOverride: lastSessionSummary.topic })}>
+                              <RefreshCw className="h-4 w-4" /> Run again
+                            </Button>
+                            <Button variant="outline" onClick={() => launch("weak")} disabled={!rankedWeakTopics.length}>
+                              <ShieldAlert className="h-4 w-4" /> Fix misses
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="rounded-3xl bg-rose-50 p-5 leading-7">
                       This version is now anchored to the practice midterm and Classes 9-14. The sessions are built from a weighted Midterm 2 bank instead of the older generic accounting topic mix.
                     </div>
@@ -664,10 +784,14 @@ export default function USCAccountingPracticeTool() {
                   <CardHeader>
                     <div className="flex items-center justify-between gap-4">
                       <CardTitle>6-question diagnostic</CardTitle>
-                      <div className="w-56"><Progress value={sessionQuestions.length ? ((questionIndex + (revealed ? 1 : 0)) / sessionQuestions.length) * 100 : 0} className="h-3" /></div>
+                      <div className="w-56"><Progress value={sessionProgressValue} className="h-3" /></div>
                     </div>
                   </CardHeader>
                   <CardContent>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
+                      <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                    </div>
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
@@ -680,13 +804,18 @@ export default function USCAccountingPracticeTool() {
                       <CardTitle>Burst drill</CardTitle>
                       <div className="flex flex-wrap gap-2">
                         {topics.map((topic) => (
-                          <Button key={topic} variant={selectedTopic === topic ? "default" : "outline"} className="rounded-full" onClick={() => { setSelectedTopic(topic); }}>{topic}</Button>
+                          <Button key={topic} variant={selectedTopic === topic ? "default" : "outline"} className="rounded-full" onClick={() => chooseTopic(topic)}>{topic}</Button>
                         ))}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">Six quick reps pulled from the dynamic Midterm 2 bank. If you switch the topic filter, relaunch Drill from the left panel.</div>
+                    <div className="mb-4 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">Six quick reps pulled from the dynamic Midterm 2 bank. Topic changes now relaunch the drill immediately instead of leaving you on a stale set.</div>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Topic: {loadedSessionTopic}</Badge>
+                      <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
+                      <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                    </div>
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
@@ -698,7 +827,13 @@ export default function USCAccountingPracticeTool() {
                   <CardContent className="space-y-4">
                     <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">This pulls from the topics you have missed most. Good. That means it is doing its job.</div>
                     {sessionQuestions.length ? (
-                      <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
+                          <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                        </div>
+                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                      </>
                     ) : (
                       <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">Miss a few questions first, then come back here and let the app bully the right topics.</div>
                     )}
@@ -752,8 +887,8 @@ export default function USCAccountingPracticeTool() {
                     <div className="flex items-center justify-between gap-4">
                       <CardTitle>Mini-case lab</CardTitle>
                       <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => { setCaseIndex((i) => (i - 1 + miniCases.length) % miniCases.length); setCaseQuestionIndex(0); setCaseSelected(""); setCaseNumeric(""); setCaseRevealed(false); setCaseScore(0); }}>Previous case</Button>
-                        <Button onClick={() => { setCaseIndex((i) => (i + 1) % miniCases.length); setCaseQuestionIndex(0); setCaseSelected(""); setCaseNumeric(""); setCaseRevealed(false); setCaseScore(0); }}>Next case</Button>
+                        <Button variant="outline" onClick={() => { setCaseIndex((i) => (i - 1 + miniCases.length) % miniCases.length); setCaseQuestionIndex(0); setCaseSelected(""); setCaseNumeric(""); setCaseRevealed(false); setCaseScore(0); setLastCaseSummary(null); }}>Previous case</Button>
+                        <Button onClick={() => { setCaseIndex((i) => (i + 1) % miniCases.length); setCaseQuestionIndex(0); setCaseSelected(""); setCaseNumeric(""); setCaseRevealed(false); setCaseScore(0); setLastCaseSummary(null); }}>Next case</Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -776,21 +911,27 @@ export default function USCAccountingPracticeTool() {
                         const correct = activeCaseQuestion.type === "numeric"
                           ? Math.abs(Number(caseNumeric) - Number(activeCaseQuestion.answer)) < 0.01
                           : String(caseSelected).trim().toLowerCase() === String(activeCaseQuestion.answer).trim().toLowerCase();
-                        if (correct) setCaseScore((s) => s + 1);
+                        const updatedScore = correct ? caseScore + 1 : caseScore;
                         if (caseQuestionIndex + 1 < activeCase.questions.length) {
+                          setCaseScore(updatedScore);
                           setCaseQuestionIndex((i) => i + 1);
                           setCaseSelected("");
                           setCaseNumeric("");
                           setCaseRevealed(false);
                         } else {
+                          setLastCaseSummary({ title: activeCase.title, score: updatedScore, total: activeCase.questions.length });
                           setCaseQuestionIndex(0);
                           setCaseSelected("");
                           setCaseNumeric("");
                           setCaseRevealed(false);
+                          setCaseScore(0);
                         }
                       }}
                     />
-                    <div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">Case score this run: {caseScore}</div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">Current run banked score: {caseScore}</div>
+                      <div className="rounded-3xl bg-sky-50 p-4 text-sm leading-6 text-sky-950">{lastCaseSummary ? `Last completed run on ${lastCaseSummary.title}: ${lastCaseSummary.score} / ${lastCaseSummary.total}` : "Finish a full case once to store a completed-run score."}</div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -827,6 +968,10 @@ export default function USCAccountingPracticeTool() {
                   <CardHeader><CardTitle>Confidence mock</CardTitle></CardHeader>
                   <CardContent>
                     <div className="mb-4 rounded-3xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">This mock follows the Midterm 2 weighting but keeps the pacing gentler. Use it when the goal is stabilization, not intimidation.</div>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
+                      <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                    </div>
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
@@ -837,6 +982,10 @@ export default function USCAccountingPracticeTool() {
                   <CardHeader><CardTitle>Exam mock</CardTitle></CardHeader>
                   <CardContent>
                     <div className="mb-4 rounded-3xl bg-rose-50 p-4 text-sm leading-6 text-rose-950">This is the closest thing to the real mix: receivables, inventory, PP&E, liabilities, ratios, and a light TVM hit. Do it after one confidence pass or one weak-spots round.</div>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
+                      <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                    </div>
                     <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
