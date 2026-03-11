@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Brain, Calculator, Target, Trophy, RefreshCw, Clock3, Heart, CheckCircle2, XCircle, BookOpenText, LineChart, Sparkles, ShieldAlert, Rabbit, RotateCcw } from "lucide-react";
 import {
@@ -188,8 +188,10 @@ const studyBoards: StickerItem[] = [
   }
 ];
 
-type ActiveSessionMode = "diagnostic" | "drill" | "weak" | "mockConfidence" | "mockExam";
-type ViewMode = "home" | "learn" | "effects" | "cases" | "tvm" | ActiveSessionMode;
+type ActiveSessionMode = "diagnostic" | "drill" | "weak" | "mockConfidence" | "mockExam" | "mistakes";
+type ViewMode = "home" | "learn" | "effects" | "cases" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
+
+type ConfidenceLevel = "Guessing" | "Pretty sure" | "Certain";
 
 type SessionSummary = {
   mode: ActiveSessionMode;
@@ -197,9 +199,44 @@ type SessionSummary = {
   total: number;
   topic: string;
   missedTopics: string[];
+  overconfidentErrors: number;
+  lowConfidenceWins: number;
 };
 
 type StatementGuess = Record<keyof StatementEffect["answer"], StatementDirection | "">;
+
+type MistakeBookItem = {
+  question: BankQuestion;
+  misses: number;
+  lastWrongAt: string;
+};
+
+type JournalEntryLine = {
+  side: "Dr" | "Cr";
+  account: string;
+  amount: number;
+};
+
+type JournalScenario = {
+  id: number;
+  title: string;
+  topic: string;
+  prompt: string;
+  expected: JournalEntryLine[];
+  why: string;
+  hint: string;
+};
+
+type JournalFeedback = {
+  parseErrors: string[];
+  totalDebits: number;
+  totalCredits: number;
+  isBalanced: boolean;
+  missingLines: string[];
+  extraLines: string[];
+  matchedLines: string[];
+  isCorrect: boolean;
+};
 
 type MiniCaseQuestionProps = {
   item: MiniCaseItem;
@@ -221,9 +258,189 @@ type QuestionViewProps = {
   revealed: boolean;
   showHint: boolean;
   setShowHint: React.Dispatch<React.SetStateAction<boolean>>;
+  confidence: ConfidenceLevel | "";
+  setConfidence: React.Dispatch<React.SetStateAction<ConfidenceLevel | "">>;
   onSubmit: () => void;
   onNext: () => void;
 };
+
+const MISTAKE_BOOK_STORAGE_KEY = "accounting_mistake_book_v1";
+
+const confidenceOptions: ConfidenceLevel[] = ["Guessing", "Pretty sure", "Certain"];
+
+const journalScenarios: JournalScenario[] = [
+  {
+    id: 1,
+    title: "Write off an uncollectible account",
+    topic: "Receivables & Allowance",
+    prompt: "A specific customer account for 1,200 is judged uncollectible under the allowance method. Record the write-off.",
+    expected: [
+      { side: "Dr", account: "Allowance for Doubtful Accounts", amount: 1200 },
+      { side: "Cr", account: "Accounts Receivable", amount: 1200 }
+    ],
+    why: "A write-off uses the allowance that was built earlier. It does not create new bad debt expense on the write-off date.",
+    hint: "Remove the receivable and reduce the contra-asset, not expense."
+  },
+  {
+    id: 2,
+    title: "Adjust the allowance upward",
+    topic: "Receivables & Allowance",
+    prompt: "The desired ending Allowance for Doubtful Accounts is 9,800 and the unadjusted allowance already has a 1,700 credit balance. Record the adjusting entry.",
+    expected: [
+      { side: "Dr", account: "Bad Debt Expense", amount: 8100 },
+      { side: "Cr", account: "Allowance for Doubtful Accounts", amount: 8100 }
+    ],
+    why: "The adjustment is for the gap between the current allowance balance and the desired ending allowance.",
+    hint: "Target ending allowance minus current credit balance gives the adjustment amount."
+  },
+  {
+    id: 3,
+    title: "Capitalize asset acquisition cost",
+    topic: "PP&E + Intangibles",
+    prompt: "A machine costs 63,000, freight is 1,200, installation is 1,800, and training is 700 paid in cash. Record the purchase and setup entry for the capitalized amount only.",
+    expected: [
+      { side: "Dr", account: "Equipment", amount: 66000 },
+      { side: "Cr", account: "Cash", amount: 66000 }
+    ],
+    why: "Capitalize the purchase price, freight, and installation. Training is expensed separately and is not part of this entry.",
+    hint: "Only include costs to acquire and prepare the asset for use."
+  },
+  {
+    id: 4,
+    title: "Accrue note interest",
+    topic: "Current Liabilities",
+    prompt: "A 24,000 note at 12% has been outstanding for 4 months at year-end. Record the interest accrual.",
+    expected: [
+      { side: "Dr", account: "Interest Expense", amount: 960 },
+      { side: "Cr", account: "Interest Payable", amount: 960 }
+    ],
+    why: "Interest has been incurred over time, so the expense and payable are recognized before cash is paid.",
+    hint: "Principal x annual rate x time = accrued interest."
+  },
+  {
+    id: 5,
+    title: "Recognize earned revenue from advance cash",
+    topic: "Current Liabilities",
+    prompt: "A company collected 18,000 cash in advance for a 6-month service contract. After 2 months of service, record the entry to recognize the amount earned.",
+    expected: [
+      { side: "Dr", account: "Unearned Revenue", amount: 6000 },
+      { side: "Cr", account: "Service Revenue", amount: 6000 }
+    ],
+    why: "Two of the six months have been earned, so one-third of the liability becomes revenue.",
+    hint: "Move the earned portion out of the liability account."
+  }
+];
+
+function readStoredMistakeBook(): MistakeBookItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(MISTAKE_BOOK_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as MistakeBookItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeAccount(account: string) {
+  return account.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function formatJournalLine(line: JournalEntryLine) {
+  return `${line.side} ${line.account} ${line.amount.toLocaleString()}`;
+}
+
+function parseJournalLines(input: string) {
+  const rows = input
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const parsed: JournalEntryLine[] = [];
+  const errors: string[] = [];
+
+  rows.forEach((row, index) => {
+    const match = row.match(/^(dr|debit|cr|credit)\s+(.+?)\s+(-?\$?[\d,]+(?:\.\d+)?)$/i);
+    if (!match) {
+      errors.push(`Line ${index + 1} should look like "Dr Account Name 100".`);
+      return;
+    }
+    const side = /^(dr|debit)$/i.test(match[1]) ? "Dr" : "Cr";
+    const account = match[2].trim();
+    const amount = Number(match[3].replace(/[$,]/g, ""));
+
+    if (!account) {
+      errors.push(`Line ${index + 1} is missing an account name.`);
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      errors.push(`Line ${index + 1} needs a positive numeric amount.`);
+      return;
+    }
+
+    parsed.push({ side, account, amount });
+  });
+
+  return { parsed, errors };
+}
+
+function evaluateJournalEntry(input: string, scenario: JournalScenario): JournalFeedback {
+  const { parsed, errors } = parseJournalLines(input);
+  const totalDebits = parsed.filter((line) => line.side === "Dr").reduce((sum, line) => sum + line.amount, 0);
+  const totalCredits = parsed.filter((line) => line.side === "Cr").reduce((sum, line) => sum + line.amount, 0);
+  const expectedMap = new Map<string, number>();
+  const actualMap = new Map<string, number>();
+
+  scenario.expected.forEach((line) => {
+    const key = `${line.side}|${normalizeAccount(line.account)}|${line.amount.toFixed(2)}`;
+    expectedMap.set(key, (expectedMap.get(key) ?? 0) + 1);
+  });
+
+  parsed.forEach((line) => {
+    const key = `${line.side}|${normalizeAccount(line.account)}|${line.amount.toFixed(2)}`;
+    actualMap.set(key, (actualMap.get(key) ?? 0) + 1);
+  });
+
+  const missingLines: string[] = [];
+  const extraLines: string[] = [];
+  const matchedLines: string[] = [];
+
+  expectedMap.forEach((count, key) => {
+    const actualCount = actualMap.get(key) ?? 0;
+    if (actualCount < count) {
+      const match = scenario.expected.find((line) => key === `${line.side}|${normalizeAccount(line.account)}|${line.amount.toFixed(2)}`);
+      for (let i = 0; i < count - actualCount; i += 1) {
+        missingLines.push(match ? formatJournalLine(match) : key);
+      }
+    } else {
+      const match = scenario.expected.find((line) => key === `${line.side}|${normalizeAccount(line.account)}|${line.amount.toFixed(2)}`);
+      matchedLines.push(match ? formatJournalLine(match) : key);
+    }
+  });
+
+  actualMap.forEach((count, key) => {
+    const expectedCount = expectedMap.get(key) ?? 0;
+    if (count > expectedCount) {
+      const match = parsed.find((line) => key === `${line.side}|${normalizeAccount(line.account)}|${line.amount.toFixed(2)}`);
+      for (let i = 0; i < count - expectedCount; i += 1) {
+        extraLines.push(match ? formatJournalLine(match) : key);
+      }
+    }
+  });
+
+  return {
+    parseErrors: errors,
+    totalDebits,
+    totalCredits,
+    isBalanced: totalDebits === totalCredits && parsed.length > 0,
+    missingLines,
+    extraLines,
+    matchedLines,
+    isCorrect: errors.length === 0 && totalDebits === totalCredits && missingLines.length === 0 && extraLines.length === 0 && parsed.length === scenario.expected.length
+  };
+}
 
 function StatCard({ label, value, icon: Icon }: { label: string; value: string | number; icon: LucideIcon }) {
   return (
@@ -283,7 +500,7 @@ function gradeStatementEffect(guess: StatementGuess, answer: StatementEffect["an
 }
 
 function isSessionMode(mode: string): mode is ActiveSessionMode {
-  return mode === "diagnostic" || mode === "drill" || mode === "weak" || mode === "mockConfidence" || mode === "mockExam";
+  return mode === "diagnostic" || mode === "drill" || mode === "weak" || mode === "mockConfidence" || mode === "mockExam" || mode === "mistakes";
 }
 
 function modeLabel(mode: ActiveSessionMode) {
@@ -298,6 +515,8 @@ function modeLabel(mode: ActiveSessionMode) {
       return "Confidence mock";
     case "mockExam":
       return "Exam mock";
+    case "mistakes":
+      return "Mistake book";
     default:
       return mode;
   }
@@ -310,18 +529,21 @@ export default function USCAccountingPracticeTool() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [numericInput, setNumericInput] = useState("");
+  const [confidence, setConfidence] = useState<ConfidenceLevel | "">("");
   const [revealed, setRevealed] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [diagnosticDone, setDiagnosticDone] = useState(false);
   const [score, setScore] = useState(0);
   const [sessionScore, setSessionScore] = useState(0);
   const [sessionMisses, setSessionMisses] = useState<Record<string, number>>({});
+  const [sessionConfidenceLog, setSessionConfidenceLog] = useState<Array<{ confidence: ConfidenceLevel; correct: boolean }>>([]);
   const [attempts, setAttempts] = useState(0);
   const [streak, setStreak] = useState(0);
   const [missedTopics, setMissedTopics] = useState<Record<string, number>>({});
   const [loadedSessionMode, setLoadedSessionMode] = useState<ActiveSessionMode | null>(null);
   const [loadedSessionTopic, setLoadedSessionTopic] = useState("All");
   const [lastSessionSummary, setLastSessionSummary] = useState<SessionSummary | null>(null);
+  const [mistakeBook, setMistakeBook] = useState<MistakeBookItem[]>(readStoredMistakeBook);
   const [rescueIndex, setRescueIndex] = useState(0);
   const [rescueFill, setRescueFill] = useState("");
   const [rescueReveal, setRescueReveal] = useState(false);
@@ -345,6 +567,9 @@ export default function USCAccountingPracticeTool() {
   const [timelineFV, setTimelineFV] = useState("1100");
   const [timelineR, setTimelineR] = useState("10");
   const [timelineN, setTimelineN] = useState("1");
+  const [journalScenarioIndex, setJournalScenarioIndex] = useState(0);
+  const [journalDraft, setJournalDraft] = useState("");
+  const [journalFeedback, setJournalFeedback] = useState<JournalFeedback | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
 
   const topics = ["All", ...topicRescues.map((t) => t.topic)];
@@ -358,6 +583,11 @@ export default function USCAccountingPracticeTool() {
   const effect = statementEffects[effectsIndex];
   const activeCase = miniCases[caseIndex];
   const activeCaseQuestion = activeCase.questions[caseQuestionIndex];
+  const activeJournalScenario = journalScenarios[journalScenarioIndex];
+  const prioritizedMistakes = [...mistakeBook].sort((a, b) => {
+    if (b.misses !== a.misses) return b.misses - a.misses;
+    return new Date(b.lastWrongAt).getTime() - new Date(a.lastWrongAt).getTime();
+  });
   const effectFields: Array<{ key: keyof StatementEffect["answer"]; label: string }> = [
     { key: "assets", label: "Assets" },
     { key: "liabilities", label: "Liabilities" },
@@ -378,18 +608,47 @@ export default function USCAccountingPracticeTool() {
   function resetQuestionState() {
     setSelectedAnswer("");
     setNumericInput("");
+    setConfidence("");
     setRevealed(false);
     setShowHint(false);
   }
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MISTAKE_BOOK_STORAGE_KEY, JSON.stringify(mistakeBook));
+  }, [mistakeBook]);
+
+  function updateMistakeBook(question: BankQuestion) {
+    setMistakeBook((prev) => {
+      const existing = prev.find((item) => item.question.id === question.id);
+      const nextItem: MistakeBookItem = existing
+        ? { ...existing, misses: existing.misses + 1, lastWrongAt: new Date().toISOString(), question }
+        : { question, misses: 1, lastWrongAt: new Date().toISOString() };
+
+      return [nextItem, ...prev.filter((item) => item.question.id !== question.id)].sort((a, b) => {
+        if (b.misses !== a.misses) return b.misses - a.misses;
+        return new Date(b.lastWrongAt).getTime() - new Date(a.lastWrongAt).getTime();
+      });
+    });
+  }
+
+  function clearMistake(questionId: number) {
+    setMistakeBook((prev) => prev.filter((item) => item.question.id !== questionId));
+  }
+
   function launch(modeName: ActiveSessionMode, options?: { topicOverride?: string }) {
     const topicForSession = options?.topicOverride ?? selectedTopic;
-    const nextSession = modeName === "diagnostic" ? diagnosticQuestions : buildSession(modeName, topicForSession, missedTopics, sessionCount + 1);
+    const nextSession = modeName === "diagnostic"
+      ? diagnosticQuestions
+      : modeName === "mistakes"
+        ? prioritizedMistakes.slice(0, 8).map((item) => item.question)
+        : buildSession(modeName, topicForSession, missedTopics, sessionCount + 1);
     setMode(modeName);
     setSessionQuestions(nextSession);
     setQuestionIndex(0);
     setSessionScore(0);
     setSessionMisses({});
+    setSessionConfidenceLog([]);
     setLoadedSessionMode(modeName);
     setLoadedSessionTopic(topicForSession);
     setSessionCount((x: number) => x + 1);
@@ -399,6 +658,8 @@ export default function USCAccountingPracticeTool() {
   function nextQuestion() {
     if (questionIndex + 1 >= sessionQuestions.length) {
       if (isSessionMode(mode)) {
+        const overconfidentErrors = sessionConfidenceLog.filter((item) => !item.correct && item.confidence === "Certain").length;
+        const lowConfidenceWins = sessionConfidenceLog.filter((item) => item.correct && item.confidence === "Guessing").length;
         setLastSessionSummary({
           mode,
           score: sessionScore,
@@ -406,7 +667,9 @@ export default function USCAccountingPracticeTool() {
           topic: loadedSessionTopic,
           missedTopics: Object.entries(sessionMisses)
             .sort((a, b) => b[1] - a[1])
-            .map(([topic]) => topic)
+            .map(([topic]) => topic),
+          overconfidentErrors,
+          lowConfidenceWins
         });
       }
       if (mode === "diagnostic") setDiagnosticDone(true);
@@ -415,6 +678,7 @@ export default function USCAccountingPracticeTool() {
       setQuestionIndex(0);
       setSessionScore(0);
       setSessionMisses({});
+      setSessionConfidenceLog([]);
       setLoadedSessionMode(null);
       resetQuestionState();
       return;
@@ -424,7 +688,7 @@ export default function USCAccountingPracticeTool() {
   }
 
   function submitQuestion() {
-    if (!currentQuestion || revealed) return;
+    if (!currentQuestion || revealed || !confidence) return;
     let correct = false;
     if (currentQuestion.type === "mcq" || currentQuestion.type === "classification") {
       correct = String(selectedAnswer).trim().toLowerCase() === String(currentQuestion.answer).trim().toLowerCase();
@@ -432,14 +696,19 @@ export default function USCAccountingPracticeTool() {
       correct = Math.abs(Number(numericInput) - Number(currentQuestion.answer)) < 0.01;
     }
     setAttempts((a: number) => a + 1);
+    setSessionConfidenceLog((prev) => [...prev, { confidence, correct }]);
     if (correct) {
       setScore((s: number) => s + 1);
       setSessionScore((s: number) => s + 1);
       setStreak((s: number) => s + 1);
+      if (mode === "mistakes") {
+        clearMistake(currentQuestion.id);
+      }
     } else {
       setStreak(0);
       setMissedTopics((prev) => ({ ...prev, [currentQuestion.topic]: (prev[currentQuestion.topic] || 0) + 1 }));
       setSessionMisses((prev) => ({ ...prev, [currentQuestion.topic]: (prev[currentQuestion.topic] || 0) + 1 }));
+      updateMistakeBook(currentQuestion);
     }
     setRevealed(true);
   }
@@ -450,8 +719,10 @@ export default function USCAccountingPracticeTool() {
     setQuestionIndex(0);
     setSessionScore(0);
     setSessionMisses({});
+    setSessionConfidenceLog([]);
     setSelectedAnswer("");
     setNumericInput("");
+    setConfidence("");
     setRevealed(false);
     setShowHint(false);
     setDiagnosticDone(false);
@@ -480,9 +751,16 @@ export default function USCAccountingPracticeTool() {
     setTimelineFV("1100");
     setTimelineR("10");
     setTimelineN("1");
+    setJournalScenarioIndex(0);
+    setJournalDraft("");
+    setJournalFeedback(null);
   }
 
   function handleModeChange(nextMode: string) {
+    if (nextMode === "mistakes" || nextMode === "entries") {
+      setMode(nextMode as ViewMode);
+      return;
+    }
     if (isSessionMode(nextMode)) {
       if (loadedSessionMode === nextMode && sessionQuestions.length > 0) {
         setMode(nextMode);
@@ -499,6 +777,10 @@ export default function USCAccountingPracticeTool() {
     if (mode === "drill") {
       launch("drill", { topicOverride: topic });
     }
+  }
+
+  function checkJournalEntry() {
+    setJournalFeedback(evaluateJournalEntry(journalDraft, activeJournalScenario));
   }
 
   const isRecoveryRecommended = attempts > 0 && (rankedWeakTopics.length >= 3 || accuracy < 55);
@@ -585,6 +867,12 @@ export default function USCAccountingPracticeTool() {
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("tvm")}>
                   <Calculator className="mr-3 h-5 w-5" /> 7. TVM timeline lab
                 </Button>
+                <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("entries")}>
+                  <BookOpenText className="mr-3 h-5 w-5" /> 8. Journal-entry workbench
+                </Button>
+                <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("mistakes")}>
+                  <ShieldAlert className="mr-3 h-5 w-5" /> 9. Mistake book
+                </Button>
                 <div className="grid grid-cols-2 gap-2">
                   <Button className="rounded-2xl py-6" variant="default" onClick={() => launch("mockConfidence")}>
                     <Rabbit className="mr-2 h-5 w-5" /> Confidence mock
@@ -611,6 +899,9 @@ export default function USCAccountingPracticeTool() {
                 <div className="rounded-2xl bg-amber-50 p-3 text-sm leading-6 text-amber-900">
                   {diagnosticDone ? "Diagnostic done. Rescue the weakest Midterm 2 topic, then recycle misses." : "Run the diagnostic before trusting your feelings. Panic is a terrible course planner."}
                 </div>
+                <div className="rounded-2xl bg-sky-50 p-3 text-sm leading-6 text-sky-900">
+                  Mistake book saved: <span className="font-semibold">{mistakeBook.length}</span> question{mistakeBook.length === 1 ? "" : "s"} waiting for a clean retry.
+                </div>
               </CardContent>
             </Card>
 
@@ -636,7 +927,7 @@ export default function USCAccountingPracticeTool() {
 
           <div>
             <Tabs value={mode} onValueChange={handleModeChange} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-5 rounded-2xl lg:grid-cols-10">
+              <TabsList className="grid w-full grid-cols-6 rounded-2xl lg:grid-cols-12">
                 <TabsTrigger value="home">Home</TabsTrigger>
                 <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
                 <TabsTrigger value="learn">Learn</TabsTrigger>
@@ -645,6 +936,8 @@ export default function USCAccountingPracticeTool() {
                 <TabsTrigger value="effects">Effects</TabsTrigger>
                 <TabsTrigger value="cases">Cases</TabsTrigger>
                 <TabsTrigger value="tvm">TVM</TabsTrigger>
+                <TabsTrigger value="entries">Entries</TabsTrigger>
+                <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
                 <TabsTrigger value="mockConfidence">Conf</TabsTrigger>
                 <TabsTrigger value="mockExam">Exam</TabsTrigger>
               </TabsList>
@@ -662,6 +955,10 @@ export default function USCAccountingPracticeTool() {
                             <div className="mt-2 text-sm leading-6 text-slate-600">
                               Topic setting: <span className="font-semibold text-slate-800">{lastSessionSummary.topic}</span>
                               {lastSessionSummary.missedTopics.length ? ` · Focus next on ${lastSessionSummary.missedTopics.slice(0, 2).join(" and ")}.` : " · Clean run with no repeated weak spots."}
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Badge variant="outline">Overconfident misses: {lastSessionSummary.overconfidentErrors}</Badge>
+                              <Badge variant="outline">Low-confidence wins: {lastSessionSummary.lowConfidenceWins}</Badge>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -792,7 +1089,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -816,7 +1113,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -832,7 +1129,7 @@ export default function USCAccountingPracticeTool() {
                           <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                           <Badge variant="outline">Correct this run: {sessionScore}</Badge>
                         </div>
-                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
                       </>
                     ) : (
                       <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">Miss a few questions first, then come back here and let the app bully the right topics.</div>
@@ -963,6 +1260,113 @@ export default function USCAccountingPracticeTool() {
                 </Card>
               </TabsContent>
 
+              <TabsContent value="entries">
+                <Card className="rounded-[2rem] shadow-lg">
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-4">
+                      <CardTitle>Journal-entry workbench</CardTitle>
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => { setJournalScenarioIndex((i) => (i - 1 + journalScenarios.length) % journalScenarios.length); setJournalDraft(""); setJournalFeedback(null); }}>Previous</Button>
+                        <Button onClick={() => { setJournalScenarioIndex((i) => (i + 1) % journalScenarios.length); setJournalDraft(""); setJournalFeedback(null); }}>Next</Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge>{activeJournalScenario.topic}</Badge>
+                      <Badge variant="outline">{activeJournalScenario.title}</Badge>
+                    </div>
+                    <div className="rounded-3xl bg-slate-50 p-5 leading-7 text-slate-800">{activeJournalScenario.prompt}</div>
+                    <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+                      <div className="space-y-3">
+                        <div className="rounded-3xl border p-5">
+                          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">Entry format</div>
+                          <div className="mt-2 text-sm leading-6 text-slate-600">One line per posting. Example: <span className="font-semibold text-slate-900">Dr Interest Expense 960</span></div>
+                          <textarea
+                            value={journalDraft}
+                            onChange={(event) => setJournalDraft(event.target.value)}
+                            placeholder={"Dr Account Name 100\nCr Account Name 100"}
+                            className="mt-4 min-h-56 w-full rounded-2xl border border-slate-300 bg-white p-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
+                          />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button onClick={checkJournalEntry}>Check entry</Button>
+                            <Button variant="outline" onClick={() => setJournalDraft(activeJournalScenario.expected.map(formatJournalLine).join("\n"))}>Load model answer</Button>
+                          </div>
+                        </div>
+                        <div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">Hint: {activeJournalScenario.hint}</div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="rounded-3xl border p-5">
+                          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">Coach note</div>
+                          <div className="mt-2 leading-7 text-slate-700">{activeJournalScenario.why}</div>
+                        </div>
+                        {journalFeedback ? (
+                          <div className={`rounded-3xl p-5 ${journalFeedback.isCorrect ? "bg-emerald-50" : "bg-rose-50"}`}>
+                            <div className="font-semibold text-slate-900">{journalFeedback.isCorrect ? "Balanced and correct." : "Needs correction."}</div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Badge variant="outline">Debits: {journalFeedback.totalDebits.toLocaleString()}</Badge>
+                              <Badge variant="outline">Credits: {journalFeedback.totalCredits.toLocaleString()}</Badge>
+                              <Badge variant="outline">{journalFeedback.isBalanced ? "Balanced" : "Out of balance"}</Badge>
+                            </div>
+                            {journalFeedback.parseErrors.length ? <div className="mt-3 text-sm leading-6 text-slate-700">Parse issues: {journalFeedback.parseErrors.join(" ")}</div> : null}
+                            {journalFeedback.missingLines.length ? <div className="mt-3 text-sm leading-6 text-slate-700">Missing: {journalFeedback.missingLines.join(" | ")}</div> : null}
+                            {journalFeedback.extraLines.length ? <div className="mt-3 text-sm leading-6 text-slate-700">Extra / wrong lines: {journalFeedback.extraLines.join(" | ")}</div> : null}
+                            <div className="mt-3 rounded-2xl bg-white/70 p-3 text-sm leading-6 text-slate-700">Expected entry: {activeJournalScenario.expected.map(formatJournalLine).join(" ; ")}</div>
+                          </div>
+                        ) : (
+                          <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">Check an entry to see balance, missing lines, and exact-posting feedback.</div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="mistakes">
+                <Card className="rounded-[2rem] shadow-lg">
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-4">
+                      <CardTitle>Mistake book</CardTitle>
+                      <div className="flex gap-2">
+                        <Button onClick={() => launch("mistakes")} disabled={!mistakeBook.length}>Retry saved misses</Button>
+                        <Button variant="outline" onClick={() => setMistakeBook([])} disabled={!mistakeBook.length}>Clear book</Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {loadedSessionMode === "mistakes" && sessionQuestions.length ? (
+                      <>
+                        <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">This run only pulls from saved misses. A correct answer clears that question out of the mistake book.</div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
+                          <Badge variant="outline">Correct this run: {sessionScore}</Badge>
+                          <Badge variant="outline">Saved mistakes remaining: {mistakeBook.length}</Badge>
+                        </div>
+                        <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
+                      </>
+                    ) : prioritizedMistakes.length ? (
+                      <>
+                        <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">Every wrong question gets parked here locally in the browser. Use this tab as the highest-value cleanup round before another mock.</div>
+                        <div className="grid gap-3">
+                          {prioritizedMistakes.slice(0, 10).map((item) => (
+                            <div key={item.question.id} className="rounded-3xl border p-4">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge>{item.question.topic}</Badge>
+                                <Badge variant="outline">{item.misses} miss{item.misses === 1 ? "" : "es"}</Badge>
+                              </div>
+                              <div className="mt-3 font-semibold text-slate-900">{item.question.prompt}</div>
+                              <div className="mt-2 text-sm leading-6 text-slate-600">{item.question.explanation}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">No saved mistakes yet. Once Hanna misses a question, it will be stored here for targeted cleanup.</div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               <TabsContent value="mockConfidence">
                 <Card className="rounded-[2rem] shadow-lg">
                   <CardHeader><CardTitle>Confidence mock</CardTitle></CardHeader>
@@ -972,7 +1376,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -986,7 +1390,7 @@ export default function USCAccountingPracticeTool() {
                       <Badge variant="outline">Question {Math.min(questionIndex + 1, sessionQuestions.length || 1)} / {sessionQuestions.length || 0}</Badge>
                       <Badge variant="outline">Correct this run: {sessionScore}</Badge>
                     </div>
-                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} onSubmit={submitQuestion} onNext={nextQuestion} />
+                    <QuestionView question={currentQuestion} selectedAnswer={selectedAnswer} setSelectedAnswer={setSelectedAnswer} numericInput={numericInput} setNumericInput={setNumericInput} revealed={revealed} showHint={showHint} setShowHint={setShowHint} confidence={confidence} setConfidence={setConfidence} onSubmit={submitQuestion} onNext={nextQuestion} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1087,7 +1491,7 @@ function MiniCaseQuestion({ item, selected, setSelected, numeric, setNumeric, re
   );
 }
 
-function QuestionView({ question, selectedAnswer, setSelectedAnswer, numericInput, setNumericInput, revealed, showHint, setShowHint, onSubmit, onNext }: QuestionViewProps) {
+function QuestionView({ question, selectedAnswer, setSelectedAnswer, numericInput, setNumericInput, revealed, showHint, setShowHint, confidence, setConfidence, onSubmit, onNext }: QuestionViewProps) {
   if (!question) {
     return <div className="rounded-3xl border border-dashed p-8 text-center text-slate-600">No questions loaded for this mode yet. Launch a mode from the left panel.</div>;
   }
@@ -1143,8 +1547,22 @@ function QuestionView({ question, selectedAnswer, setSelectedAnswer, numericInpu
       )}
 
       {!revealed ? (
+        <div className="rounded-3xl bg-sky-50 p-4">
+          <div className="text-sm font-semibold uppercase tracking-wide text-sky-700">Confidence check</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {confidenceOptions.map((option) => (
+              <Button key={option} variant={confidence === option ? "default" : "outline"} className="rounded-full" onClick={() => setConfidence(option)}>
+                {option}
+              </Button>
+            ))}
+          </div>
+          <div className="mt-2 text-xs leading-5 text-slate-600">This feeds the recap so Hanna can see overconfidence and shaky correct answers instead of just raw score.</div>
+        </div>
+      ) : null}
+
+      {!revealed ? (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onSubmit} disabled={question.type === "numeric" ? numericInput === "" : !selectedAnswer}>Check answer</Button>
+          <Button onClick={onSubmit} disabled={question.type === "numeric" ? numericInput === "" || !confidence : !selectedAnswer || !confidence}>Check answer</Button>
           <Button variant="outline" onClick={() => setShowHint((x) => !x)}>{showHint ? "Hide hint" : "Show hint"}</Button>
         </div>
       ) : null}
