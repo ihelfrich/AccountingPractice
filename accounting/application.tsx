@@ -189,7 +189,7 @@ const studyBoards: StickerItem[] = [
 ];
 
 type ActiveSessionMode = "diagnostic" | "drill" | "weak" | "mockConfidence" | "mockExam" | "mistakes";
-type ViewMode = "home" | "learn" | "effects" | "cases" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
+type ViewMode = "home" | "learn" | "effects" | "cases" | "simulators" | "tvm" | "entries" | "mistakes" | ActiveSessionMode;
 
 type ConfidenceLevel = "Guessing" | "Pretty sure" | "Certain";
 
@@ -238,6 +238,29 @@ type JournalFeedback = {
   isCorrect: boolean;
 };
 
+type InventoryInputs = {
+  beginningUnits: string;
+  beginningCost: string;
+  purchaseOneUnits: string;
+  purchaseOneCost: string;
+  purchaseTwoUnits: string;
+  purchaseTwoCost: string;
+  unitsSold: string;
+};
+
+type PpeInputs = {
+  purchasePrice: string;
+  freight: string;
+  installation: string;
+  training: string;
+  salvage: string;
+  usefulLife: string;
+  yearsUsed: string;
+  salePrice: string;
+  revisedSalvage: string;
+  revisedRemainingLife: string;
+};
+
 type MiniCaseQuestionProps = {
   item: MiniCaseItem;
   selected: string;
@@ -267,6 +290,36 @@ type QuestionViewProps = {
 const MISTAKE_BOOK_STORAGE_KEY = "accounting_mistake_book_v1";
 
 const confidenceOptions: ConfidenceLevel[] = ["Guessing", "Pretty sure", "Certain"];
+
+const defaultInventoryInputs: InventoryInputs = {
+  beginningUnits: "18",
+  beginningCost: "19",
+  purchaseOneUnits: "24",
+  purchaseOneCost: "21",
+  purchaseTwoUnits: "16",
+  purchaseTwoCost: "24",
+  unitsSold: "30"
+};
+
+const defaultPpeInputs: PpeInputs = {
+  purchasePrice: "63000",
+  freight: "1200",
+  installation: "1800",
+  training: "700",
+  salvage: "6000",
+  usefulLife: "5",
+  yearsUsed: "2",
+  salePrice: "41000",
+  revisedSalvage: "4000",
+  revisedRemainingLife: "3"
+};
+
+const moneyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 
 const journalScenarios: JournalScenario[] = [
   {
@@ -330,6 +383,148 @@ const journalScenarios: JournalScenario[] = [
     hint: "Move the earned portion out of the liability account."
   }
 ];
+
+function readNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoney(value: number) {
+  return moneyFormatter.format(Math.round(value * 100) / 100);
+}
+
+function takeEndingInventory(
+  layers: Array<{ label: string; units: number; unitCost: number }>,
+  endingUnits: number,
+  fromNewest: boolean
+) {
+  let remaining = endingUnits;
+  let value = 0;
+  const allocations: Array<{ label: string; units: number; unitCost: number }> = [];
+  const orderedLayers = fromNewest ? [...layers].reverse() : [...layers];
+
+  orderedLayers.forEach((layer) => {
+    if (remaining <= 0 || layer.units <= 0) return;
+    const takenUnits = Math.min(remaining, layer.units);
+    if (takenUnits > 0) {
+      allocations.push({ label: layer.label, units: takenUnits, unitCost: layer.unitCost });
+      value += takenUnits * layer.unitCost;
+      remaining -= takenUnits;
+    }
+  });
+
+  return {
+    value,
+    allocations
+  };
+}
+
+function buildInventorySimulation(inputs: InventoryInputs) {
+  const layers = [
+    { label: "Beginning inventory", units: Math.max(0, readNumber(inputs.beginningUnits)), unitCost: Math.max(0, readNumber(inputs.beginningCost)) },
+    { label: "Purchase 1", units: Math.max(0, readNumber(inputs.purchaseOneUnits)), unitCost: Math.max(0, readNumber(inputs.purchaseOneCost)) },
+    { label: "Purchase 2", units: Math.max(0, readNumber(inputs.purchaseTwoUnits)), unitCost: Math.max(0, readNumber(inputs.purchaseTwoCost)) }
+  ];
+  const goodsAvailableUnits = layers.reduce((sum, layer) => sum + layer.units, 0);
+  const goodsAvailableCost = layers.reduce((sum, layer) => sum + layer.units * layer.unitCost, 0);
+  const requestedSoldUnits = Math.max(0, readNumber(inputs.unitsSold));
+  const soldUnits = Math.min(requestedSoldUnits, goodsAvailableUnits);
+  const endingUnits = Math.max(goodsAvailableUnits - soldUnits, 0);
+  const fifo = takeEndingInventory(layers, endingUnits, true);
+  const lifo = takeEndingInventory(layers, endingUnits, false);
+  const weightedAverageUnitCost = goodsAvailableUnits > 0 ? goodsAvailableCost / goodsAvailableUnits : 0;
+  const weightedAverageEndingInventory = endingUnits * weightedAverageUnitCost;
+  const nonZeroCosts = layers.filter((layer) => layer.units > 0).map((layer) => layer.unitCost);
+  const priceTrend = nonZeroCosts.length >= 2
+    ? nonZeroCosts.every((cost, index, all) => index === 0 || cost >= all[index - 1])
+      ? "rising"
+      : nonZeroCosts.every((cost, index, all) => index === 0 || cost <= all[index - 1])
+        ? "falling"
+        : "mixed"
+    : "mixed";
+
+  return {
+    layers,
+    goodsAvailableUnits,
+    goodsAvailableCost,
+    soldUnits,
+    requestedSoldUnits,
+    endingUnits,
+    fifo: {
+      endingInventory: fifo.value,
+      cogs: goodsAvailableCost - fifo.value,
+      allocations: fifo.allocations
+    },
+    lifo: {
+      endingInventory: lifo.value,
+      cogs: goodsAvailableCost - lifo.value,
+      allocations: lifo.allocations
+    },
+    weightedAverage: {
+      unitCost: weightedAverageUnitCost,
+      endingInventory: weightedAverageEndingInventory,
+      cogs: goodsAvailableCost - weightedAverageEndingInventory
+    },
+    warning:
+      requestedSoldUnits > goodsAvailableUnits
+        ? `Units sold were capped at ${goodsAvailableUnits} because the shelf only has ${goodsAvailableUnits} units available.`
+        : "",
+    priceTrend
+  };
+}
+
+function buildPpeSimulation(inputs: PpeInputs) {
+  const purchasePrice = Math.max(0, readNumber(inputs.purchasePrice));
+  const freight = Math.max(0, readNumber(inputs.freight));
+  const installation = Math.max(0, readNumber(inputs.installation));
+  const training = Math.max(0, readNumber(inputs.training));
+  const salvage = Math.max(0, readNumber(inputs.salvage));
+  const usefulLife = Math.max(0, readNumber(inputs.usefulLife));
+  const yearsUsed = Math.max(0, readNumber(inputs.yearsUsed));
+  const salePrice = Math.max(0, readNumber(inputs.salePrice));
+  const revisedSalvage = Math.max(0, readNumber(inputs.revisedSalvage));
+  const revisedRemainingLife = Math.max(0, readNumber(inputs.revisedRemainingLife));
+
+  const capitalizedCost = purchasePrice + freight + installation;
+  const totalCashPaid = capitalizedCost + training;
+  const depreciableBase = Math.max(capitalizedCost - salvage, 0);
+  const annualDepreciation = usefulLife > 0 ? depreciableBase / usefulLife : 0;
+  const effectiveYearsUsed = usefulLife > 0 ? Math.min(yearsUsed, usefulLife) : 0;
+  const accumulatedDepreciation = annualDepreciation * effectiveYearsUsed;
+  const bookValue = capitalizedCost - accumulatedDepreciation;
+  const revisedDepreciationBase = Math.max(bookValue - revisedSalvage, 0);
+  const revisedAnnualDepreciation = revisedRemainingLife > 0 ? revisedDepreciationBase / revisedRemainingLife : 0;
+  const saleDifference = salePrice - bookValue;
+  const warnings: string[] = [];
+
+  if (salvage > capitalizedCost) {
+    warnings.push("Salvage exceeds capitalized cost, so straight-line depreciation is capped at zero until the assumptions are fixed.");
+  }
+  if (usefulLife === 0) {
+    warnings.push("Useful life must be above zero to compute straight-line depreciation.");
+  }
+  if (yearsUsed > usefulLife && usefulLife > 0) {
+    warnings.push("Years used is above useful life, so accumulated depreciation is capped at the full depreciable base.");
+  }
+  if (revisedRemainingLife === 0) {
+    warnings.push("Revised remaining life must be above zero to compute the prospective depreciation after an estimate change.");
+  }
+
+  return {
+    capitalizedCost,
+    trainingExpense: training,
+    totalCashPaid,
+    depreciableBase,
+    annualDepreciation,
+    accumulatedDepreciation,
+    bookValue,
+    revisedAnnualDepreciation,
+    saleDifference,
+    saleOutcome:
+      saleDifference > 0 ? "Gain on disposal" : saleDifference < 0 ? "Loss on disposal" : "No gain or loss",
+    warnings
+  };
+}
 
 function readStoredMistakeBook(): MistakeBookItem[] {
   if (typeof window === "undefined") return [];
@@ -522,6 +717,68 @@ function modeLabel(mode: ActiveSessionMode) {
   }
 }
 
+function LabMetric({
+  label,
+  value,
+  note,
+  tone = "slate"
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: "slate" | "sky" | "emerald" | "amber" | "rose";
+}) {
+  const toneClasses = {
+    slate: "border-slate-200 bg-white text-slate-900",
+    sky: "border-sky-100 bg-sky-50 text-sky-950",
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-950",
+    amber: "border-amber-100 bg-amber-50 text-amber-950",
+    rose: "border-rose-100 bg-rose-50 text-rose-950"
+  };
+
+  return (
+    <div className={`rounded-3xl border p-4 ${toneClasses[tone]}`}>
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] opacity-70">{label}</div>
+      <div className="mt-2 text-2xl font-black">{value}</div>
+      {note ? <div className="mt-2 text-sm leading-6 opacity-80">{note}</div> : null}
+    </div>
+  );
+}
+
+function InventoryMethodCard({
+  label,
+  endingInventory,
+  cogs,
+  allocations,
+  note,
+  tone
+}: {
+  label: string;
+  endingInventory: number;
+  cogs: number;
+  allocations: Array<{ label: string; units: number; unitCost: number }>;
+  note: string;
+  tone: "sky" | "amber" | "emerald";
+}) {
+  return (
+    <div className="rounded-[1.65rem] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-lg font-semibold text-slate-900">{label}</div>
+        <Badge variant="outline" className="rounded-full">{note}</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <LabMetric label="Ending inventory" value={formatMoney(endingInventory)} tone={tone} />
+        <LabMetric label="COGS" value={formatMoney(cogs)} tone="slate" />
+      </div>
+      <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+        {allocations.length
+          ? allocations.map((allocation) => `${allocation.units} units from ${allocation.label} @ ${formatMoney(allocation.unitCost)}`).join(" · ")
+          : "No ending units left to allocate."}
+      </div>
+    </div>
+  );
+}
+
 export default function USCAccountingPracticeTool() {
   const [mode, setMode] = useState<ViewMode>("home");
   const [selectedTopic, setSelectedTopic] = useState("All");
@@ -567,6 +824,8 @@ export default function USCAccountingPracticeTool() {
   const [timelineFV, setTimelineFV] = useState("1100");
   const [timelineR, setTimelineR] = useState("10");
   const [timelineN, setTimelineN] = useState("1");
+  const [inventoryInputs, setInventoryInputs] = useState<InventoryInputs>(defaultInventoryInputs);
+  const [ppeInputs, setPpeInputs] = useState<PpeInputs>(defaultPpeInputs);
   const [journalScenarioIndex, setJournalScenarioIndex] = useState(0);
   const [journalDraft, setJournalDraft] = useState("");
   const [journalFeedback, setJournalFeedback] = useState<JournalFeedback | null>(null);
@@ -584,6 +843,8 @@ export default function USCAccountingPracticeTool() {
   const activeCase = miniCases[caseIndex];
   const activeCaseQuestion = activeCase.questions[caseQuestionIndex];
   const activeJournalScenario = journalScenarios[journalScenarioIndex];
+  const inventorySimulation = useMemo(() => buildInventorySimulation(inventoryInputs), [inventoryInputs]);
+  const ppeSimulation = useMemo(() => buildPpeSimulation(ppeInputs), [ppeInputs]);
   const prioritizedMistakes = [...mistakeBook].sort((a, b) => {
     if (b.misses !== a.misses) return b.misses - a.misses;
     return new Date(b.lastWrongAt).getTime() - new Date(a.lastWrongAt).getTime();
@@ -751,6 +1012,8 @@ export default function USCAccountingPracticeTool() {
     setTimelineFV("1100");
     setTimelineR("10");
     setTimelineN("1");
+    setInventoryInputs(defaultInventoryInputs);
+    setPpeInputs(defaultPpeInputs);
     setJournalScenarioIndex(0);
     setJournalDraft("");
     setJournalFeedback(null);
@@ -777,6 +1040,14 @@ export default function USCAccountingPracticeTool() {
     if (mode === "drill") {
       launch("drill", { topicOverride: topic });
     }
+  }
+
+  function updateInventoryInput(key: keyof InventoryInputs, value: string) {
+    setInventoryInputs((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updatePpeInput(key: keyof PpeInputs, value: string) {
+    setPpeInputs((prev) => ({ ...prev, [key]: value }));
   }
 
   function checkJournalEntry() {
@@ -864,14 +1135,17 @@ export default function USCAccountingPracticeTool() {
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("cases")}>
                   <BookOpenText className="mr-3 h-5 w-5" /> 6. Mini-case lab
                 </Button>
+                <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("simulators")}>
+                  <Calculator className="mr-3 h-5 w-5" /> 7. Inventory + PP&E simulator
+                </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("tvm")}>
-                  <Calculator className="mr-3 h-5 w-5" /> 7. TVM timeline lab
+                  <Calculator className="mr-3 h-5 w-5" /> 8. TVM timeline lab
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("entries")}>
-                  <BookOpenText className="mr-3 h-5 w-5" /> 8. Journal-entry workbench
+                  <BookOpenText className="mr-3 h-5 w-5" /> 9. Journal-entry workbench
                 </Button>
                 <Button className="w-full justify-start rounded-2xl py-6 text-left" variant="outline" onClick={() => setMode("mistakes")}>
-                  <ShieldAlert className="mr-3 h-5 w-5" /> 9. Mistake book
+                  <ShieldAlert className="mr-3 h-5 w-5" /> 10. Mistake book
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
                   <Button className="rounded-2xl py-6" variant="default" onClick={() => launch("mockConfidence")}>
@@ -927,7 +1201,7 @@ export default function USCAccountingPracticeTool() {
 
           <div>
             <Tabs value={mode} onValueChange={handleModeChange} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6 rounded-2xl lg:grid-cols-12">
+              <TabsList className="flex w-full flex-wrap rounded-2xl">
                 <TabsTrigger value="home">Home</TabsTrigger>
                 <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
                 <TabsTrigger value="learn">Learn</TabsTrigger>
@@ -935,6 +1209,7 @@ export default function USCAccountingPracticeTool() {
                 <TabsTrigger value="weak">Weak</TabsTrigger>
                 <TabsTrigger value="effects">Effects</TabsTrigger>
                 <TabsTrigger value="cases">Cases</TabsTrigger>
+                <TabsTrigger value="simulators">Sims</TabsTrigger>
                 <TabsTrigger value="tvm">TVM</TabsTrigger>
                 <TabsTrigger value="entries">Entries</TabsTrigger>
                 <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
@@ -1228,6 +1503,258 @@ export default function USCAccountingPracticeTool() {
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">Current run banked score: {caseScore}</div>
                       <div className="rounded-3xl bg-sky-50 p-4 text-sm leading-6 text-sky-950">{lastCaseSummary ? `Last completed run on ${lastCaseSummary.title}: ${lastCaseSummary.score} / ${lastCaseSummary.total}` : "Finish a full case once to store a completed-run score."}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="simulators">
+                <Card className="rounded-[2rem] shadow-lg">
+                  <CardHeader>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <CardTitle>Inventory + PP&amp;E simulator lab</CardTitle>
+                        <div className="mt-2 text-sm leading-6 text-slate-600">
+                          Live sandboxes for the two biggest Midterm 2 calculation clusters. Change the inputs and watch the accounting story move immediately.
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => setInventoryInputs(defaultInventoryInputs)}>Reset inventory case</Button>
+                        <Button variant="outline" onClick={() => setPpeInputs(defaultPpeInputs)}>Reset PP&amp;E case</Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="rounded-[1.8rem] border border-white/70 bg-gradient-to-r from-rose-50 via-white to-sky-50 p-5 shadow-sm">
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        <LabMetric
+                          label="Why this matters"
+                          value="Exam patterns"
+                          note="Inventory methods and PP&E math are where students usually lose clean points even when they know the vocabulary."
+                          tone="rose"
+                        />
+                        <LabMetric
+                          label="How to use it"
+                          value="Change one input"
+                          note="Do not randomize everything at once. Change one number, predict the direction first, then check the output."
+                          tone="sky"
+                        />
+                        <LabMetric
+                          label="Best habit"
+                          value="Narrate the flow"
+                          note="Say what stays on the shelf, what becomes expense, and what becomes book value. That narration is what carries into exam questions."
+                          tone="emerald"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-6 xl:grid-cols-2">
+                      <div className="space-y-5 rounded-[1.85rem] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Inventory cost-flow lab</div>
+                            <div className="mt-1 text-sm leading-6 text-slate-600">Periodic FIFO, periodic LIFO, and weighted average from one shelf.</div>
+                          </div>
+                          <Badge variant="outline" className="rounded-full">Units sold: {inventorySimulation.soldUnits}</Badge>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Beg units</div>
+                            <Input value={inventoryInputs.beginningUnits} onChange={(event) => updateInventoryInput("beginningUnits", event.target.value)} />
+                          </div>
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Beg unit cost</div>
+                            <Input value={inventoryInputs.beginningCost} onChange={(event) => updateInventoryInput("beginningCost", event.target.value)} />
+                          </div>
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Purchase 1 units</div>
+                            <Input value={inventoryInputs.purchaseOneUnits} onChange={(event) => updateInventoryInput("purchaseOneUnits", event.target.value)} />
+                          </div>
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Purchase 1 cost</div>
+                            <Input value={inventoryInputs.purchaseOneCost} onChange={(event) => updateInventoryInput("purchaseOneCost", event.target.value)} />
+                          </div>
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Purchase 2 units</div>
+                            <Input value={inventoryInputs.purchaseTwoUnits} onChange={(event) => updateInventoryInput("purchaseTwoUnits", event.target.value)} />
+                          </div>
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Purchase 2 cost</div>
+                            <Input value={inventoryInputs.purchaseTwoCost} onChange={(event) => updateInventoryInput("purchaseTwoCost", event.target.value)} />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Units sold</div>
+                            <Input value={inventoryInputs.unitsSold} onChange={(event) => updateInventoryInput("unitsSold", event.target.value)} />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {inventorySimulation.layers.map((layer, index) => {
+                            const widthPercent = inventorySimulation.goodsAvailableUnits
+                              ? Math.max(10, (layer.units / inventorySimulation.goodsAvailableUnits) * 100)
+                              : 0;
+                            return (
+                              <div key={layer.label} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="text-sm font-semibold text-slate-900">{layer.label}</div>
+                                <div className="mt-1 text-sm leading-6 text-slate-600">
+                                  {layer.units} units at {formatMoney(layer.unitCost)} each
+                                </div>
+                                <div className="mt-3 h-2 rounded-full bg-white">
+                                  <div
+                                    className={`h-2 rounded-full ${index === 0 ? "bg-rose-300" : index === 1 ? "bg-amber-300" : "bg-sky-300"}`}
+                                    style={{ width: `${widthPercent}%` }}
+                                  />
+                                </div>
+                                <div className="mt-3 text-sm font-semibold text-slate-700">Layer cost: {formatMoney(layer.units * layer.unitCost)}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <LabMetric label="Goods available" value={`${inventorySimulation.goodsAvailableUnits} units`} note={formatMoney(inventorySimulation.goodsAvailableCost)} tone="sky" />
+                          <LabMetric label="Ending units" value={`${inventorySimulation.endingUnits} units`} note="Units still sitting on the shelf at period end." tone="emerald" />
+                          <LabMetric label="Weighted avg" value={formatMoney(inventorySimulation.weightedAverage.unitCost)} note="Average cost per unit across all units available." tone="amber" />
+                        </div>
+
+                        {inventorySimulation.warning ? (
+                          <div className="rounded-3xl bg-rose-50 p-4 text-sm leading-6 text-rose-950">{inventorySimulation.warning}</div>
+                        ) : null}
+
+                        <div className="grid gap-4">
+                          <InventoryMethodCard
+                            label="FIFO"
+                            endingInventory={inventorySimulation.fifo.endingInventory}
+                            cogs={inventorySimulation.fifo.cogs}
+                            allocations={inventorySimulation.fifo.allocations}
+                            note="Ending inventory keeps the newest costs."
+                            tone="sky"
+                          />
+                          <InventoryMethodCard
+                            label="LIFO"
+                            endingInventory={inventorySimulation.lifo.endingInventory}
+                            cogs={inventorySimulation.lifo.cogs}
+                            allocations={inventorySimulation.lifo.allocations}
+                            note="Ending inventory keeps the oldest costs."
+                            tone="amber"
+                          />
+                          <div className="rounded-[1.65rem] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-lg font-semibold text-slate-900">Weighted average</div>
+                              <Badge variant="outline" className="rounded-full">One pooled unit cost</Badge>
+                            </div>
+                            <div className="mt-4 grid gap-3 md:grid-cols-3">
+                              <LabMetric label="Avg unit cost" value={formatMoney(inventorySimulation.weightedAverage.unitCost)} tone="emerald" />
+                              <LabMetric label="Ending inventory" value={formatMoney(inventorySimulation.weightedAverage.endingInventory)} tone="sky" />
+                              <LabMetric label="COGS" value={formatMoney(inventorySimulation.weightedAverage.cogs)} tone="slate" />
+                            </div>
+                            <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                              Weighted average smooths the layers into one per-unit amount, so it usually lands between FIFO and LIFO when costs are moving.
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+                          {inventorySimulation.priceTrend === "rising"
+                            ? "Costs are rising across the layers here. That means FIFO leaves the most recent expensive units in ending inventory and usually reports lower COGS than LIFO."
+                            : inventorySimulation.priceTrend === "falling"
+                              ? "Costs are falling across the layers here. That flips the usual rising-price intuition, so watch which method leaves the cheaper units in ending inventory."
+                              : "Costs are not moving in a clean one-direction trend here, so rely on the actual layer logic instead of a memorized directional shortcut."}
+                        </div>
+                      </div>
+
+                      <div className="space-y-5 rounded-[1.85rem] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-700">PP&amp;E depreciation + disposal lab</div>
+                            <div className="mt-1 text-sm leading-6 text-slate-600">See what gets capitalized, what gets expensed, how book value changes, and what sale price does at disposal.</div>
+                          </div>
+                          <Badge variant="outline" className="rounded-full">Prospective estimate change included</Badge>
+                        </div>
+
+                        <div className="grid gap-4">
+                          <div className="rounded-3xl border border-rose-100 bg-rose-50/70 p-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700">Acquisition inputs</div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Purchase price</div>
+                                <Input value={ppeInputs.purchasePrice} onChange={(event) => updatePpeInput("purchasePrice", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Freight</div>
+                                <Input value={ppeInputs.freight} onChange={(event) => updatePpeInput("freight", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Installation</div>
+                                <Input value={ppeInputs.installation} onChange={(event) => updatePpeInput("installation", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Training expense</div>
+                                <Input value={ppeInputs.training} onChange={(event) => updatePpeInput("training", event.target.value)} />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-3xl border border-sky-100 bg-sky-50/70 p-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">Depreciation inputs</div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Salvage value</div>
+                                <Input value={ppeInputs.salvage} onChange={(event) => updatePpeInput("salvage", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Useful life (years)</div>
+                                <Input value={ppeInputs.usefulLife} onChange={(event) => updatePpeInput("usefulLife", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Years used</div>
+                                <Input value={ppeInputs.yearsUsed} onChange={(event) => updatePpeInput("yearsUsed", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sale price now</div>
+                                <Input value={ppeInputs.salePrice} onChange={(event) => updatePpeInput("salePrice", event.target.value)} />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Change in estimate</div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Revised salvage</div>
+                                <Input value={ppeInputs.revisedSalvage} onChange={(event) => updatePpeInput("revisedSalvage", event.target.value)} />
+                              </div>
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Revised remaining life</div>
+                                <Input value={ppeInputs.revisedRemainingLife} onChange={(event) => updatePpeInput("revisedRemainingLife", event.target.value)} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <LabMetric label="Cash paid" value={formatMoney(ppeSimulation.totalCashPaid)} note="Everything paid up front in this setup." tone="slate" />
+                          <LabMetric label="Capitalize now" value={formatMoney(ppeSimulation.capitalizedCost)} note="Purchase price + freight + installation." tone="rose" />
+                          <LabMetric label="Expense now" value={formatMoney(ppeSimulation.trainingExpense)} note="Training does not create future service potential." tone="amber" />
+                          <LabMetric label="Depreciable base" value={formatMoney(ppeSimulation.depreciableBase)} note="Capitalized cost minus salvage." tone="sky" />
+                          <LabMetric label="Annual straight-line depreciation" value={formatMoney(ppeSimulation.annualDepreciation)} note="Original estimate." tone="emerald" />
+                          <LabMetric label="Accumulated depreciation" value={formatMoney(ppeSimulation.accumulatedDepreciation)} note="Based on years already used." tone="sky" />
+                          <LabMetric label="Book value now" value={formatMoney(ppeSimulation.bookValue)} note="Asset cost less accumulated depreciation." tone="rose" />
+                          <LabMetric label="New annual depreciation" value={formatMoney(ppeSimulation.revisedAnnualDepreciation)} note="Prospective only after the estimate change." tone="emerald" />
+                          <LabMetric label={ppeSimulation.saleOutcome} value={formatMoney(Math.abs(ppeSimulation.saleDifference))} note={`${formatMoney(readNumber(ppeInputs.salePrice))} sale proceeds compared with current book value.`} tone={ppeSimulation.saleDifference >= 0 ? "sky" : "amber"} />
+                        </div>
+
+                        {ppeSimulation.warnings.length ? (
+                          <div className="rounded-3xl bg-rose-50 p-4 text-sm leading-6 text-rose-950">
+                            {ppeSimulation.warnings.join(" ")}
+                          </div>
+                        ) : null}
+
+                        <div className="rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                          Estimate changes are prospective. Do not go back and restate old depreciation. Recompute from current book value using the revised salvage and remaining life.
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
